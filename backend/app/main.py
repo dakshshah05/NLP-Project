@@ -3,6 +3,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.config import settings
 from backend.app.api import dashboard, command, workflows, agents, memory, storage
+from backend.app.database import engine, Base
+
+# Initialize Database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

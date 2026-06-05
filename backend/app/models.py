@@ -12,6 +12,7 @@ class Command(Base):
     __tablename__ = "commands"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(100), nullable=False, index=True)
     original_text = Column(Text, nullable=False)
     language = Column(String(50), default="English")
     intent = Column(String(100), nullable=True)
@@ -26,6 +27,7 @@ class Workflow(Base):
     __tablename__ = "workflows"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(100), nullable=False, index=True)
     command_id = Column(String(36), ForeignKey("commands.id"), nullable=True)
     name = Column(String(200), nullable=False)
     status = Column(String(50), default="Pending") # Pending, Running, Completed, Failed
@@ -48,6 +50,7 @@ class Execution(Base):
     __tablename__ = "executions"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(100), nullable=False, index=True)
     workflow_id = Column(String(36), ForeignKey("workflows.id"), nullable=False)
     status = Column(String(50), default="Pending")
     started_at = Column(DateTime, default=datetime.utcnow)
@@ -76,6 +79,7 @@ class Memory(Base):
     __tablename__ = "memories"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(100), nullable=False, index=True)
     category = Column(String(100), nullable=False) # contacts, commands, preferences, documents
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

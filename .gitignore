@@ -29,6 +29,8 @@ ENV/
 env/
 backend/aura_ai.db
 backend/chroma_db/
+*.db
+*.sqlite
 
 # Node/React
 node_modules/
