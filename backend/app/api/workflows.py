@@ -2,9 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from typing import List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from backend.app.database import get_db
-from backend.app.models import Command, Workflow, WorkflowNode, Execution, ExecutionLog
+from backend.app.firebase_config import db_firestore
 from backend.app.security import get_current_user
 from backend.app.schemas import WorkflowResponse, WorkflowNodeResponse, ExecutionResponse
 from backend.app.nlp.agents_sim import AgentSimulator
@@ -15,189 +13,156 @@ class WorkflowGenReq(BaseModel):
     command_id: str
 
 @router.post("/generate", response_model=WorkflowResponse)
-def generate_workflow(
-    req: WorkflowGenReq,
-    user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+def generate_workflow(req: WorkflowGenReq, user: dict = Depends(get_current_user)):
     uid = user["uid"]
     
-    # 1. Fetch Command from SQL
-    cmd = db.query(Command).filter(Command.id == req.command_id).first()
-    if not cmd:
+    # 1. Fetch Command from Firestore
+    cmd_ref = db_firestore.collection("commands").document(req.command_id)
+    cmd_doc = cmd_ref.get()
+    
+    if not cmd_doc.exists:
         raise HTTPException(status_code=404, detail="Command not found")
         
-    title = f"Workflow: {cmd.intent.replace('_', ' ').title()}" if cmd.intent else "Workflow: Custom Task"
+    cmd_data = cmd_doc.to_dict()
+    title = f"Workflow: {cmd_data.get('intent', 'Task').replace('_', ' ').title()}"
     
     # 2. Write Workflow Document
-    wf = Workflow(
-        user_id=uid,
-        command_id=req.command_id,
-        name=title,
-        status="Pending",
-        success_rate=0.0
-    )
-    db.add(wf)
-    db.commit()
-    db.refresh(wf)
+    wf_ref = db_firestore.collection("workflows").document()
+    wf_data = {
+        "userId": uid,
+        "commandId": req.command_id,
+        "name": title,
+        "status": "Pending",
+        "success_rate": 0.0,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    wf_ref.set(wf_data)
 
     # 3. Write Workflow Nodes
-    task_decomp = cmd.task_decomposition or []
+    task_decomp = cmd_data.get("task_decomposition", [])
     nodes_list = []
     
     for idx, task in enumerate(task_decomp):
-        node_id = f"node-{idx+1}-{wf.id[:8]}"
-        node = WorkflowNode(
-            id=node_id,
-            workflow_id=wf.id,
-            label=task.get("label", ""),
-            type=task.get("type", "planner"),
-            status="Pending",
-            inputs=task.get("inputs", {}),
-            outputs=task.get("outputs", {}),
-            sequence_order=idx
-        )
-        db.add(node)
-        nodes_list.append(node)
-        
-    db.commit()
+        node_id = f"node-{idx+1}"
+        node_data = {
+            "id": node_id,
+            "workflow_id": wf_ref.id,
+            "label": task.get("label", ""),
+            "type": task.get("type", "planner"),
+            "status": "Pending",
+            "inputs": task.get("inputs", {}),
+            "outputs": task.get("outputs", {}),
+            "sequence_order": idx
+        }
+        wf_ref.collection("nodes").document(node_id).set(node_data)
+        nodes_list.append(WorkflowNodeResponse(**node_data))
 
     return WorkflowResponse(
-        id=wf.id,
+        id=wf_ref.id,
         command_id=req.command_id,
         name=title,
         status="Pending",
         success_rate=0.0,
-        created_at=wf.created_at,
-        nodes=[WorkflowNodeResponse(
-            id=n.id,
-            workflow_id=n.workflow_id,
-            label=n.label,
-            type=n.type,
-            status=n.status,
-            inputs=n.inputs or {},
-            outputs=n.outputs or {},
-            sequence_order=n.sequence_order
-        ) for n in nodes_list]
+        created_at=datetime.fromisoformat(wf_data["created_at"]),
+        nodes=nodes_list
     )
 
 @router.get("/{id}", response_model=WorkflowResponse)
-def get_workflow(
-    id: str,
-    user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    wf = db.query(Workflow).filter(Workflow.id == id).first()
-    if not wf:
+def get_workflow(id: str, user: dict = Depends(get_current_user)):
+    wf_ref = db_firestore.collection("workflows").document(id)
+    wf_doc = wf_ref.get()
+    
+    if not wf_doc.exists:
         raise HTTPException(status_code=404, detail="Workflow not found")
         
+    data = wf_doc.to_dict()
+    
     # Fetch nodes
-    nodes = db.query(WorkflowNode).filter(WorkflowNode.workflow_id == id).order_by(WorkflowNode.sequence_order).all()
+    nodes_docs = wf_ref.collection("nodes").order_by("sequence_order").get()
+    nodes = []
+    for doc in nodes_docs:
+        nodes.append(WorkflowNodeResponse(**doc.to_dict()))
         
     return WorkflowResponse(
-        id=wf.id,
-        command_id=wf.command_id,
-        name=wf.name,
-        status=wf.status,
-        success_rate=wf.success_rate,
-        created_at=wf.created_at,
-        nodes=[WorkflowNodeResponse(
-            id=n.id,
-            workflow_id=n.workflow_id,
-            label=n.label,
-            type=n.type,
-            status=n.status,
-            inputs=n.inputs or {},
-            outputs=n.outputs or {},
-            sequence_order=n.sequence_order
-        ) for n in nodes]
+        id=wf_ref.id,
+        command_id=data.get("commandId"),
+        name=data.get("name", ""),
+        status=data.get("status", "Pending"),
+        success_rate=data.get("success_rate", 0.0),
+        created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data.get("created_at"), str) else datetime.utcnow(),
+        nodes=nodes
     )
 
 @router.post("/{id}/execute", response_model=ExecutionResponse)
-def execute_workflow(
-    id: str,
-    background_tasks: BackgroundTasks,
-    user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+def execute_workflow(id: str, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     uid = user["uid"]
     
-    wf = db.query(Workflow).filter(Workflow.id == id).first()
-    if not wf:
+    wf_ref = db_firestore.collection("workflows").document(id)
+    wf_doc = wf_ref.get()
+    if not wf_doc.exists:
         raise HTTPException(status_code=404, detail="Workflow not found")
         
     # Reset all node statuses to pending
-    nodes = db.query(WorkflowNode).filter(WorkflowNode.workflow_id == id).all()
-    for node in nodes:
-        node.status = "Pending"
+    nodes_docs = wf_ref.collection("nodes").get()
+    for doc in nodes_docs:
+        doc.reference.update({"status": "Pending"})
         
-    wf.status = "Running"
+    wf_ref.update({"status": "Running"})
 
     # Create new Execution document
-    new_exec = Execution(
-        user_id=uid,
-        workflow_id=id,
-        status="Running"
-    )
-    db.add(new_exec)
-    db.commit()
-    db.refresh(new_exec)
+    exec_ref = db_firestore.collection("executions").document()
+    exec_data = {
+        "userId": uid,
+        "workflowId": id,
+        "status": "Running",
+        "started_at": datetime.utcnow().isoformat(),
+        "completed_at": None,
+        "logs": []
+    }
+    exec_ref.set(exec_data)
 
     # Spawn simulator task
     simulator = AgentSimulator()
-    background_tasks.add_task(simulator.execute_workflow_sql, new_exec.id, id)
+    background_tasks.add_task(simulator.execute_workflow_firestore, exec_ref.id, id)
 
     return ExecutionResponse(
-        id=new_exec.id,
+        id=exec_ref.id,
         workflow_id=id,
         status="Running",
-        started_at=new_exec.started_at
+        started_at=datetime.fromisoformat(exec_data["started_at"])
     )
 
 @router.get("/{id}/execution-status")
-def get_execution_status(
-    id: str,
-    user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+def get_execution_status(id: str, user: dict = Depends(get_current_user)):
     uid = user["uid"]
     
     # Get latest execution for this workflow
-    latest_exec = db.query(Execution)\
-        .filter(Execution.workflow_id == id, Execution.user_id == uid)\
-        .order_by(Execution.started_at.desc())\
-        .first()
+    execs_ref = db_firestore.collection("executions")\
+        .where("workflowId", "==", id)\
+        .where("userId", "==", uid)
         
-    if not latest_exec:
+    execs_docs = execs_ref.get()
+    if not execs_docs:
         return {"status": "Pending", "logs": [], "nodes": []}
         
-    # Fetch nodes
-    nodes = db.query(WorkflowNode).filter(WorkflowNode.workflow_id == id).order_by(WorkflowNode.sequence_order).all()
+    # Sort locally by started_at descending
+    sorted_execs = sorted(execs_docs, key=lambda x: x.to_dict().get("started_at", ""), reverse=True)
+    latest_exec = sorted_execs[0]
+    exec_data = latest_exec.to_dict()
     
-    # Fetch logs
-    logs_list = db.query(ExecutionLog).filter(ExecutionLog.execution_id == latest_exec.id).order_by(ExecutionLog.timestamp.asc()).all()
-    logs = [{
-        "agent_name": l.agent_name,
-        "level": l.level,
-        "message": l.message,
-        "timestamp": l.timestamp.isoformat() if hasattr(l.timestamp, 'isoformat') else str(l.timestamp)
-    } for l in logs_list]
+    # Fetch nodes
+    wf_ref = db_firestore.collection("workflows").document(id)
+    nodes_docs = wf_ref.collection("nodes").order_by("sequence_order").get()
+    
+    nodes = [doc.to_dict() for doc in nodes_docs]
+    logs = exec_data.get("logs", [])
 
     return {
         "execution_id": latest_exec.id,
-        "status": latest_exec.status,
-        "started_at": latest_exec.started_at,
-        "completed_at": latest_exec.completed_at,
-        "nodes": [{
-            "id": n.id,
-            "workflow_id": n.workflow_id,
-            "label": n.label,
-            "type": n.type,
-            "status": n.status,
-            "inputs": n.inputs or {},
-            "outputs": n.outputs or {},
-            "sequence_order": n.sequence_order
-        } for n in nodes],
+        "status": exec_data.get("status"),
+        "started_at": exec_data.get("started_at"),
+        "completed_at": exec_data.get("completed_at"),
+        "nodes": nodes,
         "logs": logs
     }
 

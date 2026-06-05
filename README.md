@@ -60,7 +60,6 @@ VITE_BACKEND_URL=https://your-backend-on-koyeb.koyeb.app
 ### 2. Backend Configuration (`backend/.env`)
 Create a file named `.env` in the `backend/` directory:
 ```env
-DATABASE_URL=postgresql://postgres.your-supabase-db-id:password@aws-0-us-east-1.pooler.supabase.dev:6543/postgres?sslmode=require
 FIREBASE_PROJECT_ID=your_firebase_project_id
 FIREBASE_CLIENT_EMAIL=your_firebase_client_email
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC..."
@@ -76,24 +75,30 @@ FRONTEND_URL=https://your-frontend-on-vercel.vercel.app
 
 ## ☁️ Step-by-Step Deployment Instructions
 
-### 1. Firebase Setup (Authentication Only)
+### 1. Firebase Setup (Authentication & Firestore)
 1. Go to the [Firebase Console](https://console.firebase.google.com/) and click **Add Project**.
 2. Go to **Authentication** -> **Sign-in method** -> Enable **Google** and **Email/Password**.
-3. Go to **Project Settings** (gear icon) -> **Service Accounts** -> Click **Generate New Private Key**. Download the JSON file. Use the values in this file for your backend environment variables (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`).
-4. Go to **Project Settings** -> General -> Add a Web App. Copy the `firebaseConfig` object variables to your frontend `.env` config.
+3. Go to **Firestore Database** -> Click **Create Database** -> Choose a region -> Select **Start in production mode**.
+4. Go to **Project Settings** (gear icon) -> **Service Accounts** -> Click **Generate New Private Key**. Download the JSON file. Use the values in this file for your backend environment variables (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`).
+5. Go to **Project Settings** -> General -> Add a Web App. Copy the `firebaseConfig` object variables to your frontend `.env` config.
+6. **Firestore Security Rules**: Configure the rules tab in Firestore to authorize users to read/write their own scopes:
+   ```javascript
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /{document=**} {
+         allow read, write: if request.auth != null;
+       }
+     }
+   }
+   ```
 
-### 2. Supabase Setup (PostgreSQL Database)
-1. Sign up/Log in to [Supabase](https://supabase.com/).
-2. Click **New Project** -> Select a region -> Set database password.
-3. Under Project Settings -> Database -> Connection string -> URI. Copy the URI and use it as `DATABASE_URL` for your backend. (Prefer Transaction Pooler connection mode `port 6543` for serverless environments).
-4. Relational database tables will be created automatically on backend startup.
-
-### 3. Cloudinary Setup (File Storage)
+### 2. Cloudinary Setup (File Storage)
 1. Sign up for a free account at [Cloudinary](https://cloudinary.com/).
 2. On your Cloudinary Dashboard, locate your **Cloud Name**, **API Key**, and **API Secret**.
 3. Set these values in your backend environment variables.
 
-### 4. Backend Deployment (Koyeb)
+### 3. Backend Deployment (Koyeb)
 1. Sign up/Log in to [Koyeb](https://www.koyeb.com/).
 2. Click **Create Service** -> Connect GitHub -> Select your `NLP-Project` repository.
 3. Configure the service deployment settings:
@@ -104,7 +109,7 @@ FRONTEND_URL=https://your-frontend-on-vercel.vercel.app
 4. In the Koyeb Dashboard, under the **Environment Variables** section, add all keys listed in the backend section.
 5. Click **Deploy**. Koyeb will build and launch your FastAPI backend.
 
-### 5. Frontend Deployment (Vercel)
+### 4. Frontend Deployment (Vercel)
 1. Sign up/Log in to [Vercel](https://vercel.com/).
 2. Click **Add New** -> **Project**.
 3. Connect your GitHub repository.

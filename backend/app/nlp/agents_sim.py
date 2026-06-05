@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
-from backend.app.database import SessionLocal
-from backend.app.models import Workflow, WorkflowNode, Execution, ExecutionLog, Agent
+from google.cloud import firestore
+from backend.app.firebase_config import db_firestore
 
 AGENT_CAPABILITIES = {
     "Planner Agent": ["Task decomposition", "Intent mapping", "Workflow routing"],
@@ -16,95 +16,106 @@ class AgentSimulator:
     def __init__(self):
         pass
 
-    def execute_workflow_sql(self, execution_id: str, workflow_id: str):
-        db = SessionLocal()
-        try:
-            exec_obj = db.query(Execution).filter(Execution.id == execution_id).first()
-            wf_obj = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    def execute_workflow_firestore(self, execution_id: str, workflow_id: str):
+        exec_ref = db_firestore.collection("executions").document(execution_id)
+        wf_ref = db_firestore.collection("workflows").document(workflow_id)
 
-            if not exec_obj or not wf_obj:
-                return
-
-            exec_obj.status = "Running"
-            wf_obj.status = "Running"
-            db.commit()
-
-            # Get nodes ordered by sequence_order
-            nodes = db.query(WorkflowNode).filter(WorkflowNode.workflow_id == workflow_id).order_by(WorkflowNode.sequence_order).all()
+        # Retrieve execution
+        exec_doc = exec_ref.get()
+        if not exec_doc.exists:
+            return
             
-            success_count = 0
-            total_nodes = len(nodes)
+        wf_doc = wf_ref.get()
+        if not wf_doc.exists:
+            return
 
-            # Log initial event
-            self._add_log_sql(db, execution_id, "Planner Agent", "INFO", f"Starting workflow execution: {wf_obj.name}")
+        exec_ref.update({"status": "Running"})
+        wf_ref.update({"status": "Running"})
 
-            for node in nodes:
-                node.status = "Running"
-                db.commit()
+        # Get nodes ordered by sequence_order
+        nodes_docs = wf_ref.collection("nodes").order_by("sequence_order").get()
+        
+        success_count = 0
+        total_nodes = len(nodes_docs)
+
+        # Log initial event
+        self._add_log_firestore(exec_ref, "Planner Agent", "INFO", f"Starting workflow execution: {wf_doc.to_dict().get('name')}")
+
+        for doc in nodes_docs:
+            node_ref = doc.reference
+            node_data = doc.to_dict()
+            
+            node_ref.update({"status": "Running"})
+            agent_name = self._get_agent_for_node_type(node_data.get("type", "planner"))
+            
+            # Update agent status to Active
+            agent_ref = db_firestore.collection("agents").document(agent_name)
+            agent_doc = agent_ref.get()
+            
+            if agent_doc.exists:
+                agent_ref.update({"status": "Active"})
+
+            self._add_log_firestore(exec_ref, agent_name, "INFO", f"Executing node: {node_data.get('label')}")
+            
+            # Simulate processing delay
+            time.sleep(1.2)
+
+            node_success = True
+            if "invalid" in str(node_data.get("inputs", {})).lower():
+                node_success = False
+
+            if node_success:
+                node_ref.update({"status": "Completed"})
+                success_count += 1
+                self._add_log_firestore(exec_ref, agent_name, "SUCCESS", f"Successfully completed: {node_data.get('label')}")
                 
-                agent_name = self._get_agent_for_node_type(node.type)
-                
-                # Update agent status to Active
-                agent = db.query(Agent).filter(Agent.name == agent_name).first()
-                if agent:
-                    agent.status = "Active"
-                    db.commit()
-
-                self._add_log_sql(db, execution_id, agent_name, "INFO", f"Executing node: {node.label}")
-                
-                # Simulate processing delay
-                time.sleep(1.2)
-
-                node_success = True
-                if "invalid" in str(node.inputs).lower():
-                    node_success = False
-
-                if node_success:
-                    node.status = "Completed"
-                    success_count += 1
-                    self._add_log_sql(db, execution_id, agent_name, "SUCCESS", f"Successfully completed: {node.label}")
-                    
-                    if agent:
-                        completed_count = agent.tasks_completed + 1
-                        s_rate = round((agent.success_rate * 9 + 100.0) / 10, 1)
-                        agent.status = "Idle"
-                        agent.tasks_completed = completed_count
-                        agent.success_rate = s_rate
-                        db.commit()
-                else:
-                    node.status = "Failed"
-                    self._add_log_sql(db, execution_id, agent_name, "ERROR", f"Failed executing: {node.label} - Invalid configurations provided.")
-                    
-                    if agent:
-                        s_rate = round((agent.success_rate * 9 + 0.0) / 10, 1)
-                        agent.status = "Idle"
-                        agent.success_rate = s_rate
-                        db.commit()
-
-                # Break sequence on error
-                if not node_success:
-                    break
-
-            # Complete workflow run
-            completed_at = datetime.utcnow()
-            if success_count == total_nodes:
-                exec_obj.status = "Completed"
-                exec_obj.completed_at = completed_at
-                wf_obj.status = "Completed"
-                wf_obj.success_rate = 100.0
-                self._add_log_sql(db, execution_id, "Planner Agent", "SUCCESS", "Workflow finished processing successfully.")
+                if agent_doc.exists:
+                    a_data = agent_doc.to_dict()
+                    completed_count = a_data.get("tasks_completed", 0) + 1
+                    s_rate = round((a_data.get("success_rate", 100.0) * 9 + 100.0) / 10, 1)
+                    agent_ref.update({
+                        "status": "Idle",
+                        "tasks_completed": completed_count,
+                        "success_rate": s_rate
+                    })
             else:
-                exec_obj.status = "Failed"
-                exec_obj.completed_at = completed_at
-                wf_obj.status = "Failed"
-                wf_obj.success_rate = round((success_count / total_nodes) * 100.0, 1)
-                self._add_log_sql(db, execution_id, "Planner Agent", "ERROR", f"Workflow execution halted. Successful nodes: {success_count}/{total_nodes}")
+                node_ref.update({"status": "Failed"})
+                self._add_log_firestore(exec_ref, agent_name, "ERROR", f"Failed executing: {node_data.get('label')} - Invalid configurations provided.")
+                
+                if agent_doc.exists:
+                    a_data = agent_doc.to_dict()
+                    s_rate = round((a_data.get("success_rate", 100.0) * 9 + 0.0) / 10, 1)
+                    agent_ref.update({
+                        "status": "Idle",
+                        "success_rate": s_rate
+                    })
 
-            db.commit()
-        except Exception as e:
-            print(f"Background simulator error: {e}")
-        finally:
-            db.close()
+            # Break sequence on error
+            if not node_success:
+                break
+
+        # Complete workflow run
+        completed_at = datetime.utcnow().isoformat()
+        if success_count == total_nodes:
+            exec_ref.update({
+                "status": "Completed",
+                "completed_at": completed_at
+            })
+            wf_ref.update({
+                "status": "Completed",
+                "success_rate": 100.0
+            })
+            self._add_log_firestore(exec_ref, "Planner Agent", "SUCCESS", "Workflow finished processing successfully.")
+        else:
+            exec_ref.update({
+                "status": "Failed",
+                "completed_at": completed_at
+            })
+            wf_ref.update({
+                "status": "Failed",
+                "success_rate": round((success_count / total_nodes) * 100.0, 1)
+            })
+            self._add_log_firestore(exec_ref, "Planner Agent", "ERROR", f"Workflow execution halted. Successful nodes: {success_count}/{total_nodes}")
 
     def _get_agent_for_node_type(self, node_type: str) -> str:
         mapping = {
@@ -117,13 +128,15 @@ class AgentSimulator:
         }
         return mapping.get(node_type, "Planner Agent")
 
-    def _add_log_sql(self, db, execution_id: str, agent_name: str, level: str, message: str):
-        new_log = ExecutionLog(
-            execution_id=execution_id,
-            agent_name=agent_name,
-            level=level,
-            message=message
-        )
-        db.add(new_log)
-        db.commit()
+    def _add_log_firestore(self, exec_ref, agent_name: str, level: str, message: str):
+        log_dict = {
+            "agent_name": agent_name,
+            "level": level,
+            "message": message,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        # Append to logs field list in Firestore
+        exec_ref.update({
+            "logs": firestore.ArrayUnion([log_dict])
+        })
 

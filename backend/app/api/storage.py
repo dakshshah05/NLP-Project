@@ -2,10 +2,8 @@ import os
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 import cloudinary
 import cloudinary.uploader
-from sqlalchemy.orm import Session
-from backend.app.database import get_db
-from backend.app.models import Memory
 from backend.app.security import get_current_user
+from backend.app.firebase_config import db_firestore
 from datetime import datetime
 
 router = APIRouter()
@@ -19,11 +17,7 @@ cloudinary.config(
 )
 
 @router.post("/upload")
-def upload_file(
-    file: UploadFile = File(...),
-    user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     # Restrict to standard text, image, docx, pdf formats
     allowed_types = [
         "application/pdf", 
@@ -47,15 +41,16 @@ def upload_file(
         )
         secure_url = upload_result.get("secure_url")
 
-        # Persist upload event directly to SQL 'memories' table to index search
+        # Persist upload event directly to Firestore 'memories' collection to index search
         uid = user["uid"]
-        new_mem = Memory(
-            user_id=uid,
-            category="documents",
-            content=f"File: {file.filename} uploaded to cloud storage. Accessible at: {secure_url}"
-        )
-        db.add(new_mem)
-        db.commit()
+        mem_ref = db_firestore.collection("memories").document()
+        mem_data = {
+            "userId": uid,
+            "category": "documents",
+            "content": f"File: {file.filename} uploaded to cloud storage. Accessible at: {secure_url}",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        mem_ref.set(mem_data)
 
         return {
             "filename": file.filename,
