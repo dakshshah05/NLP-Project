@@ -1,3 +1,13 @@
+---
+title: AURA AI Backend
+emoji: 🪐
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # AURA AI - Production Deployment Guide & Architecture
 
 AURA AI is a modern full-stack web application that translates natural language directives into structured, agent-orchestrated productivity workflows. 
