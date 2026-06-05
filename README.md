@@ -54,7 +54,7 @@ VITE_FIREBASE_API_KEY=your_firebase_api_key
 VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
 VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
 VITE_FIREBASE_APP_ID=your_firebase_app_id
-VITE_BACKEND_URL=https://your-backend-on-koyeb.koyeb.app
+VITE_BACKEND_URL=https://your-username-your-space-name.hf.space
 ```
 
 ### 2. Backend Configuration (`backend/.env`)
@@ -69,7 +69,7 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 FRONTEND_URL=https://your-frontend-on-vercel.vercel.app
 ```
 > [!NOTE]
-> Make sure the multiline private key quotes are included and newlines are escaped as `\n` to prevent Parse errors on Koyeb.
+> Make sure the multiline private key quotes are included and newlines are escaped as `\n` to prevent Parse errors on Hugging Face Spaces.
 
 ---
 
@@ -98,16 +98,28 @@ FRONTEND_URL=https://your-frontend-on-vercel.vercel.app
 2. On your Cloudinary Dashboard, locate your **Cloud Name**, **API Key**, and **API Secret**.
 3. Set these values in your backend environment variables.
 
-### 3. Backend Deployment (Koyeb)
-1. Sign up/Log in to [Koyeb](https://www.koyeb.com/).
-2. Click **Create Service** -> Connect GitHub -> Select your `NLP-Project` repository.
-3. Configure the service deployment settings:
-   - **Root Directory**: `/` (Leave as default repository root to allow Python to resolve the `backend` package imports correctly).
-   - **Builder**: Select **Buildpack** (Koyeb auto-detects `requirements.txt` inside the project).
-   - **Run Command**: `uvicorn backend.app.main:app --host 0.0.0.0 --port 8000`
-   - **Port**: Set port mapping to forward traffic to container port `8000`.
-4. In the Koyeb Dashboard, under the **Environment Variables** section, add all keys listed in the backend section.
-5. Click **Deploy**. Koyeb will build and launch your FastAPI backend.
+### 3. Backend Deployment (Hugging Face Spaces - No Card Required)
+1. Sign up/Log in to [Hugging Face](https://huggingface.co/).
+2. Click **New** -> **Space** (or go to `https://huggingface.co/new-space`).
+3. Configure your Space settings:
+   - **Space Name**: Choose a name (e.g., `aura-ai-backend`).
+   - **License**: Choose any license (e.g., `mit`).
+   - **SDK**: Select **Docker** (using the default **Blank** template).
+   - **Space Hardware**: Choose **CPU Basic (Free)** — *no credit card required*.
+   - **Visibility**: Select **Public** or **Private** (both options are free).
+4. Scroll down and click **Create Space**.
+5. Once created, go to the Space **Settings** tab:
+   - Scroll down to the **Variables and Secrets** section.
+   - Click **New Secret** for each of your backend environment variables:
+     - `FIREBASE_PROJECT_ID`
+     - `FIREBASE_CLIENT_EMAIL`
+     - `FIREBASE_PRIVATE_KEY` (Keep the quotation marks and escaped `\n` newlines)
+     - `CLOUDINARY_CLOUD_NAME`
+     - `CLOUDINARY_API_KEY`
+     - `CLOUDINARY_API_SECRET`
+     - `FRONTEND_URL` (Your Vercel app URL)
+6. Clone/Sync your repository to the Space. Hugging Face will automatically detect the root `Dockerfile` and build/deploy your container on port `7860`.
+7. Once building is complete, your backend is live at: `https://[your-username]-[your-space-name].hf.space`.
 
 ### 4. Frontend Deployment (Vercel)
 1. Sign up/Log in to [Vercel](https://vercel.com/).
