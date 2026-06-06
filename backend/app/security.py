@@ -8,8 +8,8 @@ security = HTTPBearer()
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     
-    # Check if Firebase credentials are set. If not, bypass to mock user for local devs.
-    if not os.getenv("FIREBASE_PROJECT_ID"):
+    # Check if Firebase credentials are set and initialized. If not, bypass to mock user for local devs.
+    if not os.getenv("FIREBASE_PROJECT_ID") or not firebase_admin._apps:
         return {
             "uid": "dev_mock_user_99",
             "email": "dev-user@aura.ai",

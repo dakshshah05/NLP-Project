@@ -12,16 +12,32 @@ app = FastAPI(
 
 # CORS origins setup
 frontend_url = os.getenv("FRONTEND_URL", "*")
+
+# Clean frontend_url to strip trailing slash
+if frontend_url and frontend_url != "*":
+    frontend_url = frontend_url.rstrip("/")
+
 origins = [
-    frontend_url,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
 ]
+if frontend_url and frontend_url != "*":
+    origins.append(frontend_url)
+
+# To support credentials with wildcard/dynamic origins, we check if frontend_url is "*"
+# If it is "*", we allow any origin dynamically via allow_origin_regex
+if frontend_url == "*":
+    allow_origin_regex = r"https?://.*"
+    allow_origins = []
+else:
+    allow_origin_regex = None
+    allow_origins = origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if frontend_url != "*" else ["*"],
+    allow_origins=allow_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
