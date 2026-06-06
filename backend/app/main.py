@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.config import settings
-from backend.app.api import dashboard, command, workflows, agents, memory, storage
+from backend.app.api import dashboard, command, workflows, agents, memory, storage, webhook
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -50,6 +50,7 @@ app.include_router(workflows.router, prefix=f"{settings.API_V1_STR}/workflows", 
 app.include_router(agents.router, prefix=f"{settings.API_V1_STR}/agents", tags=["Agents"])
 app.include_router(memory.router, prefix=f"{settings.API_V1_STR}/memory", tags=["Memory"])
 app.include_router(storage.router, prefix=f"{settings.API_V1_STR}/storage", tags=["Storage"])
+app.include_router(webhook.router, prefix=f"{settings.API_V1_STR}/webhook", tags=["Webhook"])
 
 # Render Health Check Endpoint
 @app.get("/health")
