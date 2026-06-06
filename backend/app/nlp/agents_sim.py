@@ -83,9 +83,37 @@ AURA AI Autonomous Agent Engine"""
                 
                 smtp_user = os.getenv("SMTP_USER")
                 smtp_password = os.getenv("SMTP_PASSWORD")
+                resend_api_key = os.getenv("RESEND_API_KEY")
                 
-                if smtp_user and smtp_password:
-                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"SMTP credentials found. Attempting to send email to {recipient}...")
+                if resend_api_key:
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"RESEND_API_KEY found. Attempting to send email to {recipient} via Resend HTTP API...")
+                    try:
+                        import urllib.request
+                        import json
+                        
+                        from_email = os.getenv("RESEND_FROM_EMAIL", "AURA AI Agent <onboarding@resend.dev>")
+                        
+                        url = "https://api.resend.com/emails"
+                        headers = {
+                            "Authorization": f"Bearer {resend_api_key}",
+                            "Content-Type": "application/json"
+                        }
+                        payload = {
+                            "from": from_email,
+                            "to": [recipient],
+                            "subject": subject,
+                            "text": body_content
+                        }
+                        req_data = json.dumps(payload).encode("utf-8")
+                        req = urllib.request.Request(url, data=req_data, headers=headers, method="POST")
+                        with urllib.request.urlopen(req) as res:
+                            resp = json.loads(res.read().decode("utf-8"))
+                            self._add_log_firestore(exec_ref, agent_name, "SUCCESS", f"Email successfully sent to {recipient} via Resend API (ID: {resp.get('id')}).")
+                    except Exception as resend_err:
+                        node_success = False
+                        error_message = f"Failed to send email via Resend API: {str(resend_err)}"
+                elif smtp_user and smtp_password:
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"SMTP credentials found. Attempting to send email to {recipient} via SMTP...")
                     try:
                         import smtplib
                         from email.mime.text import MIMEText
@@ -119,7 +147,7 @@ AURA AI Autonomous Agent Engine"""
                             node_success = False
                             error_message = f"Failed to send email via SMTP: {str(email_err)}"
                 else:
-                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"[SIMULATION MODE] Email Agent would send email to '{recipient}' with subject '{subject}'. To send real emails, add SMTP_USER & SMTP_PASSWORD secrets in your Hugging Face Space Settings.")
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"[SIMULATION MODE] Email Agent would send email to '{recipient}' with subject '{subject}'. To send real emails, add RESEND_API_KEY or SMTP_USER & SMTP_PASSWORD secrets in your Hugging Face Space Settings.")
 
             if node_success:
                 node_ref.update({"status": "Completed"})
