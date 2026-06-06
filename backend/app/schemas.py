@@ -111,3 +111,16 @@ class DashboardStats(BaseModel):
     success_rate: float
     recent_activities: List[RecentActivity]
     workflow_stats: Dict[str, Any]
+
+class AnalyticsRun(BaseModel):
+    name: str
+    intent: float
+    entity: float
+    workflow: float
+    success: float
+
+class AnalyticsResponse(BaseModel):
+    intent_accuracy: float
+    ner_f1: float
+    mean_execution_speed: float
+    runs: List[AnalyticsRun]

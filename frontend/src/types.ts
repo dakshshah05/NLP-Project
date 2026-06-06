@@ -108,3 +108,18 @@ export interface DashboardStats {
     failed: number;
   };
 }
+
+export interface AnalyticsRun {
+  name: string;
+  intent: number;
+  entity: number;
+  workflow: number;
+  success: number;
+}
+
+export interface AnalyticsResponse {
+  intent_accuracy: number;
+  ner_f1: number;
+  mean_execution_speed: number;
+  runs: AnalyticsRun[];
+}

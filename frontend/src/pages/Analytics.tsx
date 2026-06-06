@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { GlassCard } from '../components/GlassCard';
 import { 
   ResponsiveContainer, 
@@ -13,18 +13,50 @@ import {
   Line
 } from 'recharts';
 import { TrendingUp, Award, Activity, BarChart2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import type { AnalyticsResponse } from '../types';
 
 export const Analytics: React.FC = () => {
-  
-  // Simulated stats tracking records over time
-  const accuracyData = [
-    { name: 'Run 1', intent: 88, entity: 82, workflow: 85, success: 90 },
-    { name: 'Run 2', intent: 90, entity: 85, workflow: 88, success: 92 },
-    { name: 'Run 3', intent: 92, entity: 87, workflow: 91, success: 94 },
-    { name: 'Run 4', intent: 91, entity: 89, workflow: 90, success: 93 },
-    { name: 'Run 5', intent: 94, entity: 90, workflow: 93, success: 96 },
-    { name: 'Run 6', intent: 95, entity: 92, workflow: 94, success: 98 }
-  ];
+  const { token } = useAuth();
+  const [data, setData] = useState<AnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchAnalytics = async () => {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${backendUrl}/api/dashboard/analytics`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setData(result);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics stats', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchAnalytics();
+      const interval = setInterval(fetchAnalytics, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [token]);
+
+  if (loading || !data) {
+    return (
+      <div className="flex items-center justify-center min-h-[500px]">
+        <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const accuracyData = data.runs;
 
   return (
     <div className="space-y-6">
@@ -37,7 +69,7 @@ export const Analytics: React.FC = () => {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Intent Accuracy</span>
-              <span className="text-xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">95.3%</span>
+              <span className="text-xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">{data.intent_accuracy}%</span>
             </div>
           </div>
         </GlassCard>
@@ -48,7 +80,7 @@ export const Analytics: React.FC = () => {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">NER Recall F1</span>
-              <span className="text-xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">92.1%</span>
+              <span className="text-xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">{data.ner_f1}%</span>
             </div>
           </div>
         </GlassCard>
@@ -59,7 +91,7 @@ export const Analytics: React.FC = () => {
             </div>
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Mean Execution Speed</span>
-              <span className="text-xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">3.4 seconds</span>
+              <span className="text-xl font-extrabold text-slate-700 dark:text-slate-200 mt-0.5 block">{data.mean_execution_speed} seconds</span>
             </div>
           </div>
         </GlassCard>

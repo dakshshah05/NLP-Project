@@ -57,9 +57,20 @@ def trigger_agent_workflow(prompt_text: str, background_tasks: BackgroundTasks) 
     nlp_results = nlp_processor.process_command(prompt_text)
     intent = nlp_results.get("intent", "UNKNOWN_INTENT")
     
-    # 2. Persist Command doc in Firestore under dev_mock_user_99 (dashboard visible)
+    # Dynamically find the active userId from the database to map this webhook command correctly
+    user_id = "dev_mock_user_99"
+    try:
+        recent_wfs = db_firestore.collection("workflows").get()
+        if recent_wfs:
+            wfs_sorted = sorted(recent_wfs, key=lambda x: x.to_dict().get("created_at", ""), reverse=True)
+            user_id = wfs_sorted[0].to_dict().get("userId", "dev_mock_user_99")
+    except Exception as e:
+        print(f"Error fetching recent userId for webhook: {e}")
+
+    # 2. Persist Command doc in Firestore
     cmd_ref = db_firestore.collection("commands").document()
     cmd_data = {
+        "userId": user_id,
         "original_text": nlp_results.get("original_text", prompt_text),
         "language": nlp_results.get("language", "English"),
         "intent": intent,
@@ -76,7 +87,7 @@ def trigger_agent_workflow(prompt_text: str, background_tasks: BackgroundTasks) 
     title = f"Mobile Workflow: {intent.replace('_', ' ').title()}"
     wf_ref = db_firestore.collection("workflows").document()
     wf_data = {
-        "userId": "dev_mock_user_99",
+        "userId": user_id,
         "commandId": cmd_ref.id,
         "name": title,
         "status": "Pending",
@@ -104,7 +115,7 @@ def trigger_agent_workflow(prompt_text: str, background_tasks: BackgroundTasks) 
     # 5. Create Execution Doc
     exec_ref = db_firestore.collection("executions").document()
     exec_data = {
-        "userId": "dev_mock_user_99",
+        "userId": user_id,
         "workflowId": wf_ref.id,
         "status": "Running",
         "started_at": datetime.utcnow().isoformat(),

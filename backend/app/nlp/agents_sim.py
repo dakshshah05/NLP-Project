@@ -1,3 +1,4 @@
+import os
 import time
 from datetime import datetime
 from google.cloud import firestore
@@ -86,7 +87,6 @@ AURA AI Autonomous Agent Engine"""
                 if smtp_user and smtp_password:
                     self._add_log_firestore(exec_ref, agent_name, "INFO", f"SMTP credentials found. Attempting to send email to {recipient}...")
                     try:
-                        import os
                         import smtplib
                         from email.mime.text import MIMEText
                         from email.mime.multipart import MIMEMultipart
