@@ -61,8 +61,60 @@ class AgentSimulator:
             time.sleep(1.2)
 
             node_success = True
+            error_message = "Invalid configurations provided."
+            
             if "invalid" in str(node_data.get("inputs", {})).lower():
                 node_success = False
+                
+            # If the node type is 'email', attempt to send a real email if SMTP is configured
+            if node_success and node_data.get("type") == "email":
+                recipient = node_data.get("inputs", {}).get("to")
+                subject = node_data.get("inputs", {}).get("subject") or "AURA Automated Report"
+                body_content = f"""Hello,
+
+This is an autonomous email sent on your behalf by the AURA AI Agent.
+
+Action: {node_data.get('label')}
+Prompt processed: {wf_doc.to_dict().get('name', 'N/A')}
+
+Best regards,
+AURA AI Autonomous Agent Engine"""
+                
+                smtp_user = os.getenv("SMTP_USER")
+                smtp_password = os.getenv("SMTP_PASSWORD")
+                
+                if smtp_user and smtp_password:
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"SMTP credentials found. Attempting to send email to {recipient}...")
+                    try:
+                        import os
+                        import smtplib
+                        from email.mime.text import MIMEText
+                        from email.mime.multipart import MIMEMultipart
+                        
+                        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+                        try:
+                            smtp_port = int(os.getenv("SMTP_PORT", "587"))
+                        except ValueError:
+                            smtp_port = 587
+                            
+                        msg = MIMEMultipart()
+                        msg['From'] = smtp_user
+                        msg['To'] = recipient
+                        msg['Subject'] = subject
+                        msg.attach(MIMEText(body_content, 'plain'))
+                        
+                        server = smtplib.SMTP(smtp_host, smtp_port)
+                        server.starttls()
+                        server.login(smtp_user, smtp_password)
+                        server.sendmail(smtp_user, recipient, msg.as_string())
+                        server.quit()
+                        
+                        self._add_log_firestore(exec_ref, agent_name, "SUCCESS", f"Email successfully sent to {recipient} via SMTP.")
+                    except Exception as email_err:
+                        node_success = False
+                        error_message = f"Failed to send email via SMTP: {str(email_err)}"
+                else:
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"[SIMULATION MODE] Email Agent would send email to '{recipient}' with subject '{subject}'. To send real emails, add SMTP_USER & SMTP_PASSWORD secrets in your Hugging Face Space Settings.")
 
             if node_success:
                 node_ref.update({"status": "Completed"})
@@ -80,7 +132,7 @@ class AgentSimulator:
                     })
             else:
                 node_ref.update({"status": "Failed"})
-                self._add_log_firestore(exec_ref, agent_name, "ERROR", f"Failed executing: {node_data.get('label')} - Invalid configurations provided.")
+                self._add_log_firestore(exec_ref, agent_name, "ERROR", f"Failed executing: {node_data.get('label')} - {error_message}")
                 
                 if agent_doc.exists:
                     a_data = agent_doc.to_dict()
