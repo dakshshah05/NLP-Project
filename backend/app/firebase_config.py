@@ -120,6 +120,7 @@ if PROJECT_ID and CLIENT_EMAIL and PRIVATE_KEY:
                 "project_id": PROJECT_ID,
                 "private_key": PRIVATE_KEY,
                 "client_email": CLIENT_EMAIL,
+                "token_uri": "https://oauth2.googleapis.com/token",
             })
             firebase_admin.initialize_app(cred)
         db_firestore = firestore.client()

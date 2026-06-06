@@ -1,8 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { GlassCard } from '../components/GlassCard';
 import { BookOpen, AlertTriangle, Layers, Award, ShieldAlert } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import type { AnalyticsResponse } from '../types';
 
 export const Research: React.FC = () => {
+  const { token } = useAuth();
+  const [data, setData] = useState<AnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+        const res = await fetch(`${backendUrl}/api/dashboard/analytics`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const result = await res.json();
+          setData(result);
+        }
+      } catch (err) {
+        console.error('Failed to fetch analytics for research page', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (token) {
+      fetchAnalytics();
+    } else {
+      setLoading(false);
+    }
+  }, [token]);
+
   return (
     <div className="space-y-6 max-w-5xl">
       
@@ -105,15 +138,21 @@ export const Research: React.FC = () => {
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div className="p-4 bg-slate-100/10 dark:bg-white/5 rounded-2xl border border-slate-200/20">
-            <span className="text-2xl font-extrabold text-violet-500 block">95%+</span>
+            <span className="text-2xl font-extrabold text-violet-500 block">
+              {loading || !data ? '95%+' : `${data.intent_accuracy}%`}
+            </span>
             <span className="text-[10px] text-slate-400 font-semibold block mt-1">Intent Classification Accuracy</span>
           </div>
           <div className="p-4 bg-slate-100/10 dark:bg-white/5 rounded-2xl border border-slate-200/20">
-            <span className="text-2xl font-extrabold text-emerald-500 block">&lt;4s</span>
+            <span className="text-2xl font-extrabold text-emerald-500 block">
+              {loading || !data ? '<4s' : `${data.mean_execution_speed}s`}
+            </span>
             <span className="text-[10px] text-slate-400 font-semibold block mt-1">Mean Pipeline Setup Latency</span>
           </div>
           <div className="p-4 bg-slate-100/10 dark:bg-white/5 rounded-2xl border border-slate-200/20">
-            <span className="text-2xl font-extrabold text-blue-500 block">98%+</span>
+            <span className="text-2xl font-extrabold text-blue-500 block">
+              {loading || !data ? '98%+' : `${data.ner_f1}%`}
+            </span>
             <span className="text-[10px] text-slate-400 font-semibold block mt-1">Semantic Memory Recall F1</span>
           </div>
           <div className="p-4 bg-slate-100/10 dark:bg-white/5 rounded-2xl border border-slate-200/20">

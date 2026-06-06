@@ -238,7 +238,9 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
                   <div>
                     <span className="text-slate-400 font-semibold uppercase text-[10px] block">Success Probability</span>
-                    <span className="font-bold text-violet-500 mt-1 block">98.2%</span>
+                    <span className="font-bold text-violet-500 mt-1 block">
+                      {activeWorkflow.success_rate > 0 ? `${activeWorkflow.success_rate}%` : '98.2%'}
+                    </span>
                   </div>
 
                   <div>
