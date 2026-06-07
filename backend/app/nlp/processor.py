@@ -19,7 +19,7 @@ LANGUAGES = {
 INTENT_MAP = {
     "SEND_EMAIL": {
         "patterns": {
-            "en": [r"email", r"mail", r"send", r"write to"],
+            "en": [r"email", r"mail", r"sen[dt]", r"write to"],
             "hi": [r"ईमेल", r"मेल", r"भेजें", r"लिखें"],
             "kn": [r"ಇಮೇಲ್", r"ಮೇಲ್", r"ಕಳುಹಿಸು", r"ಬರೆ"]
         },
@@ -81,6 +81,13 @@ class NLPProcessor:
 
     def detect_intent(self, text: str, lang: str) -> tuple:
         text_lower = text.lower()
+        
+        # High-confidence heuristics
+        if re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text_lower):
+            return "SEND_EMAIL", 0.99
+        if re.search(r"https?://[^\s]+", text_lower):
+            return "AUTOMATE_BROWSER", 0.99
+
         lang_code = "en"
         if lang == "Hindi":
             lang_code = "hi"
@@ -142,7 +149,7 @@ class NLPProcessor:
         # File generation request check
         # Match pattern: create/generate/write a/an [format/type] on/about [topic]
         create_match = re.search(
-            r"(?:create|generate|write|make|send|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)?\s*([\w\s'-]+?)(?:\s+(?:and\s+)?(?:send|mail|email|post|to|at)\b|$)", 
+            r"(?:create|generate|write|make|send|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)?\s*([\w\s'-]+?)(?:\s+(?:and\s+)?(?:send|sent|mail|email|post|to|at)\b|$)", 
             text, 
             re.IGNORECASE
         )
