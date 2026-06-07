@@ -6,7 +6,7 @@ import type { Command } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 interface CommandCenterProps {
-  onCommandProcessed: (command: Command) => void;
+  onCommandProcessed: (command: Command) => Promise<void>;
   setActiveTab: (tab: string) => void;
 }
 
@@ -70,7 +70,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
       const commandResult: Command = await res.json();
       setLatestResponse(commandResult);
-      onCommandProcessed(commandResult);
+      await onCommandProcessed(commandResult);
       setInputText('');
       
       // Refresh history panel
@@ -203,9 +203,9 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 history.map((cmd) => (
                   <button
                     key={cmd.id}
-                    onClick={() => {
+                    onClick={async () => {
                       setLatestResponse(cmd);
-                      onCommandProcessed(cmd);
+                      await onCommandProcessed(cmd);
                     }}
                     className="w-full text-left p-3 rounded-xl border border-slate-200/50 dark:border-white/5 bg-slate-100/10 dark:bg-white/5 hover:border-violet-500/30 hover:bg-violet-500/5 transition-all group"
                   >
