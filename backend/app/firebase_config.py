@@ -111,6 +111,136 @@ class MockDocumentSnapshot:
     def to_dict(self):
         return dict(self._data) if self._data else {}
 
+class SafeFirestoreClient:
+    def __init__(self, real_client):
+        self.real_client = real_client
+        self.mock_client = MockFirestoreClient()
+        self.use_mock = False
+
+    def collection(self, name):
+        return SafeCollectionReference(self, name)
+
+class SafeCollectionReference:
+    def __init__(self, client, path):
+        self.client = client
+        self.path = path
+
+    def document(self, doc_id=None):
+        import uuid
+        if not doc_id:
+            doc_id = str(uuid.uuid4())
+        return SafeDocumentReference(self.client, self.path, doc_id)
+
+    def where(self, field, op, val):
+        return SafeQuery(self.client, self.path, [(field, op, val)])
+
+    def order_by(self, field):
+        return SafeQuery(self.client, self.path)
+
+    def get(self):
+        try:
+            if self.client.use_mock:
+                return self.client.mock_client.collection(self.path).get()
+            return self.client.real_client.collection(self.path).get()
+        except Exception as e:
+            if "Quota exceeded" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print("WARNING: Firestore quota exceeded during GET collection. Switching to MockFirestoreClient.")
+                self.client.use_mock = True
+                return self.client.mock_client.collection(self.path).get()
+            raise e
+
+class SafeDocumentReference:
+    def __init__(self, client, collection_path, doc_id):
+        self.client = client
+        self.collection_path = collection_path
+        self.id = doc_id
+        self.path = f"{collection_path}/{doc_id}"
+
+    def collection(self, name):
+        return SafeCollectionReference(self.client, f"{self.path}/{name}")
+
+    def get(self):
+        try:
+            if self.client.use_mock:
+                return self.client.mock_client.collection(self.collection_path).document(self.id).get()
+            return self.client.real_client.collection(self.collection_path).document(self.id).get()
+        except Exception as e:
+            if "Quota exceeded" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print("WARNING: Firestore quota exceeded during GET document. Switching to MockFirestoreClient.")
+                self.client.use_mock = True
+                return self.client.mock_client.collection(self.collection_path).document(self.id).get()
+            raise e
+
+    def set(self, data):
+        try:
+            if self.client.use_mock:
+                return self.client.mock_client.collection(self.collection_path).document(self.id).set(data)
+            return self.client.real_client.collection(self.collection_path).document(self.id).set(data)
+        except Exception as e:
+            if "Quota exceeded" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print("WARNING: Firestore quota exceeded during SET document. Switching to MockFirestoreClient.")
+                self.client.use_mock = True
+                return self.client.mock_client.collection(self.collection_path).document(self.id).set(data)
+            raise e
+
+    def update(self, data):
+        try:
+            if self.client.use_mock:
+                return self.client.mock_client.collection(self.collection_path).document(self.id).update(data)
+            return self.client.real_client.collection(self.collection_path).document(self.id).update(data)
+        except Exception as e:
+            if "Quota exceeded" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print("WARNING: Firestore quota exceeded during UPDATE document. Switching to MockFirestoreClient.")
+                self.client.use_mock = True
+                return self.client.mock_client.collection(self.collection_path).document(self.id).update(data)
+            raise e
+
+    def delete(self):
+        try:
+            if self.client.use_mock:
+                return self.client.mock_client.collection(self.collection_path).document(self.id).delete()
+            return self.client.real_client.collection(self.collection_path).document(self.id).delete()
+        except Exception as e:
+            if "Quota exceeded" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print("WARNING: Firestore quota exceeded during DELETE document. Switching to MockFirestoreClient.")
+                self.client.use_mock = True
+                return self.client.mock_client.collection(self.collection_path).document(self.id).delete()
+            raise e
+
+class SafeQuery:
+    def __init__(self, client, collection_path, filters=None):
+        self.client = client
+        self.collection_path = collection_path
+        self.filters = filters or []
+
+    def where(self, field, op, val):
+        return SafeQuery(self.client, self.collection_path, self.filters + [(field, op, val)])
+
+    def order_by(self, field):
+        return self
+
+    def get(self):
+        try:
+            if self.client.use_mock:
+                mock_q = self.client.mock_client.collection(self.collection_path)
+                for f, o, v in self.filters:
+                    mock_q = mock_q.where(f, o, v)
+                return mock_q.get()
+            
+            real_q = self.client.real_client.collection(self.collection_path)
+            for f, o, v in self.filters:
+                real_q = real_q.where(f, o, v)
+            return real_q.get()
+        except Exception as e:
+            if "Quota exceeded" in str(e) or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print("WARNING: Firestore quota exceeded during GET query. Switching to MockFirestoreClient.")
+                self.client.use_mock = True
+                mock_q = self.client.mock_client.collection(self.collection_path)
+                for f, o, v in self.filters:
+                    mock_q = mock_q.where(f, o, v)
+                return mock_q.get()
+            raise e
+
 # Initialize Admin SDK or use Mock client
 if PROJECT_ID and CLIENT_EMAIL and PRIVATE_KEY:
     try:
@@ -123,8 +253,8 @@ if PROJECT_ID and CLIENT_EMAIL and PRIVATE_KEY:
                 "token_uri": "https://oauth2.googleapis.com/token",
             })
             firebase_admin.initialize_app(cred)
-        db_firestore = firestore.client()
-        print("Firebase Admin successfully initialized with service account certificate.")
+        db_firestore = SafeFirestoreClient(firestore.client())
+        print("Firebase Admin successfully initialized with service account certificate wrapper.")
     except Exception as e:
         print(f"ERROR: Failed to initialize Firebase Admin with credentials: {e}")
         print("Falling back to local in-memory MockFirestoreClient.")

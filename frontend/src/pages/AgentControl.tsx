@@ -43,7 +43,7 @@ export const AgentControl: React.FC = () => {
   useEffect(() => {
     if (token) {
       fetchAgents();
-      const interval = setInterval(fetchAgents, 5000);
+      const interval = setInterval(fetchAgents, 15000);
       return () => clearInterval(interval);
     }
   }, [token]);

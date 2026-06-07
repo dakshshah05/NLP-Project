@@ -97,7 +97,7 @@ const AppContent: React.FC = () => {
     };
 
     checkActiveExecution();
-    const interval = setInterval(checkActiveExecution, 3000);
+    const interval = setInterval(checkActiveExecution, 7000);
     return () => clearInterval(interval);
   }, [token, activeWorkflow]);
 

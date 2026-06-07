@@ -43,7 +43,7 @@ export const Analytics: React.FC = () => {
   useEffect(() => {
     if (token) {
       fetchAnalytics();
-      const interval = setInterval(fetchAnalytics, 4000);
+      const interval = setInterval(fetchAnalytics, 15000);
       return () => clearInterval(interval);
     }
   }, [token]);
