@@ -33,7 +33,37 @@ def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_u
         raise HTTPException(status_code=400, detail=f"File type {file.content_type} not supported.")
 
     try:
-        # Upload using file buffer
+        cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+        if not cloud_name:
+            # Local filesystem fallback
+            os.makedirs("workspace", exist_ok=True)
+            local_path = os.path.join("workspace", file.filename)
+            file_content = file.file.read()
+            with open(local_path, "wb") as f:
+                f.write(file_content)
+            
+            secure_url = f"/workspace/{file.filename}"
+            file_format = file.filename.split(".")[-1] if "." in file.filename else "bin"
+            file_size = len(file_content)
+
+            uid = user["uid"]
+            mem_ref = db_firestore.collection("memories").document()
+            mem_data = {
+                "userId": uid,
+                "category": "documents",
+                "content": f"File: {file.filename} saved to local workspace. Path: {secure_url}",
+                "created_at": datetime.utcnow().isoformat()
+            }
+            mem_ref.set(mem_data)
+
+            return {
+                "filename": file.filename,
+                "url": secure_url,
+                "format": file_format,
+                "bytes": file_size
+            }
+
+        # Upload using Cloudinary API
         upload_result = cloudinary.uploader.upload(
             file.file,
             resource_type="auto",
@@ -59,5 +89,5 @@ def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_u
             "bytes": upload_result.get("bytes")
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Cloudinary upload crashed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Storage upload crashed: {str(e)}")
 

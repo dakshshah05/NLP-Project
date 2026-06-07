@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from backend.app.config import settings
 from backend.app.api import dashboard, command, workflows, agents, memory, storage, webhook
 
@@ -51,6 +52,10 @@ app.include_router(agents.router, prefix=f"{settings.API_V1_STR}/agents", tags=[
 app.include_router(memory.router, prefix=f"{settings.API_V1_STR}/memory", tags=["Memory"])
 app.include_router(storage.router, prefix=f"{settings.API_V1_STR}/storage", tags=["Storage"])
 app.include_router(webhook.router, prefix=f"{settings.API_V1_STR}/webhook", tags=["Webhook"])
+
+# Serve workspace static files
+os.makedirs("workspace", exist_ok=True)
+app.mount("/workspace", StaticFiles(directory="workspace"), name="workspace")
 
 # Render Health Check Endpoint
 @app.get("/health")

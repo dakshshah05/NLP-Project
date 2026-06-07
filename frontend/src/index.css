@@ -1,71 +1,110 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 @import "tailwindcss";
 
 @layer base {
   body {
-    @apply font-sans antialiased text-slate-800 bg-slate-50 transition-colors duration-300;
+    @apply font-sans antialiased text-slate-700 bg-slate-50 transition-colors duration-300;
+    font-family: 'Inter', sans-serif;
   }
   
   body.dark {
-    @apply text-slate-100 bg-[#0b0c16];
+    @apply text-slate-200 bg-[#07080e];
   }
 }
 
-/* Glassmorphism Styles */
+/* Light Mode Overrides for Crisp Readability */
+body:not(.dark) {
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(203, 213, 225, 0.6);
+  --glass-input-bg: rgba(255, 255, 255, 0.95);
+  --glass-input-border: rgba(203, 213, 225, 0.8);
+  --text-muted: #64748b;
+  --text-main: #1e293b;
+}
+
+body.dark {
+  --glass-bg: rgba(17, 20, 43, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-input-bg: rgba(13, 16, 35, 0.7);
+  --glass-input-border: rgba(255, 255, 255, 0.08);
+  --text-muted: #94a3b8;
+  --text-main: #f1f5f9;
+}
+
+/* Glassmorphism Panels & Cards */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
 }
 
 .dark .glass-panel {
   background: rgba(15, 18, 36, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.03);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark .glass-card {
-  background: rgba(17, 20, 43, 0.55);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
-
-.dark .glass-input {
-  background: rgba(13, 16, 35, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-input-bg);
+  border: 1px solid var(--glass-input-border);
+  transition: all 0.2s ease;
 }
 
 .glass-input:focus {
   outline: none;
   border-color: #8b5cf6;
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
 }
 
-/* Neon Glows for professional AI theme */
+/* 3D Perspective Hover Tilt Effects */
+.hover-3d {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.15), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.hover-3d:hover {
+  transform: translateY(-6px) rotateX(2.5deg) rotateY(1.5deg);
+  border-color: rgba(139, 92, 246, 0.3);
+  box-shadow: 0 15px 30px -5px rgba(139, 92, 246, 0.12), 0 8px 12px -5px rgba(139, 92, 246, 0.08);
+}
+
+.dark .hover-3d:hover {
+  border-color: rgba(139, 92, 246, 0.25);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), 0 0 25px 2px rgba(139, 92, 246, 0.15);
+}
+
+/* Neon Glows */
 .neon-glow-violet {
-  box-shadow: 0 0 20px 2px rgba(139, 92, 246, 0.15);
+  box-shadow: 0 0 25px 2px rgba(139, 92, 246, 0.12);
 }
 
 .neon-glow-indigo {
-  box-shadow: 0 0 20px 2px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 25px 2px rgba(99, 102, 241, 0.12);
+}
+
+.dark .neon-glow-violet {
+  box-shadow: 0 0 30px 4px rgba(139, 92, 246, 0.2);
+}
+
+.dark .neon-glow-indigo {
+  box-shadow: 0 0 30px 4px rgba(99, 102, 241, 0.2);
 }
 
 /* Custom Scrollbars */
@@ -79,37 +118,71 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.3);
+  background: rgba(156, 163, 175, 0.35);
   border-radius: 4px;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(156, 163, 175, 0.5);
 }
 
+/* Scroll reveal & modern fadeInUp animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scroll-reveal {
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Micro animations */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(0.97);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s infinite ease-in-out;
+}
+
 /* React Flow customizations for Dark Theme */
 .react-flow__node {
-  border-radius: 8px !important;
+  border-radius: 12px !important;
   font-family: inherit !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
 }
 
 .react-flow__edge-path {
   stroke: #8b5cf6 !important;
-  stroke-width: 2 !important;
+  stroke-width: 2.5 !important;
 }
 
 .react-flow__controls button {
-  background: rgba(255, 255, 255, 0.8) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
   border-bottom: 1px solid #e2e8f0 !important;
   color: #1e293b !important;
+  border-radius: 4px !important;
 }
 
 .dark .react-flow__controls button {
-  background: rgba(15, 23, 42, 0.8) !important;
+  background: rgba(15, 23, 42, 0.9) !important;
   border-bottom: 1px solid #334155 !important;
   color: #f8fafc !important;
 }

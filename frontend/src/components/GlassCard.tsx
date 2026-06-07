@@ -17,9 +17,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
     glow === 'violet' ? 'neon-glow-violet' :
     glow === 'indigo' ? 'neon-glow-indigo' : '';
 
-  const hoverClass = hover 
-    ? 'transition-all duration-300 hover:scale-[1.01] hover:border-violet-500/30 hover:shadow-violet-500/10'
-    : '';
+  const hoverClass = hover ? 'hover-3d' : '';
 
   return (
     <div className={`glass-card rounded-2xl p-6 border ${glowClass} ${hoverClass} ${className}`}>

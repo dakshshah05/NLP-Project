@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
@@ -20,6 +20,7 @@ const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
   const [activeWorkflow, setActiveWorkflow] = useState<Workflow | null>(null);
+  const lastActiveWorkflowId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -34,16 +35,60 @@ const AppContent: React.FC = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.active && (!activeWorkflow || activeWorkflow.id !== data.workflow_id)) {
-            setActiveWorkflow({
-              id: data.workflow_id,
-              name: data.name,
-              status: data.status,
-              success_rate: data.success_rate,
-              created_at: data.created_at,
-              command_id: null
-            });
-            setActiveTab('execution-monitor');
+          if (data.active) {
+            if (lastActiveWorkflowId.current !== data.workflow_id) {
+              lastActiveWorkflowId.current = data.workflow_id;
+              
+              // Broadcast workflow start notification
+              window.dispatchEvent(new CustomEvent('aura-notification', {
+                detail: {
+                  id: `wf-start-${data.workflow_id}-${Date.now()}`,
+                  title: 'Pipeline Executing',
+                  message: `Agent workflow "${data.name}" is now running.`,
+                  type: 'info',
+                  timestamp: new Date().toISOString()
+                }
+              }));
+            }
+
+            if (!activeWorkflow || activeWorkflow.id !== data.workflow_id) {
+              setActiveWorkflow({
+                id: data.workflow_id,
+                name: data.name,
+                status: data.status,
+                success_rate: data.success_rate,
+                created_at: data.created_at,
+                command_id: null
+              });
+              setActiveTab('execution-monitor');
+            }
+          } else {
+            // Check if a running workflow just completed
+            if (lastActiveWorkflowId.current) {
+              const wfId = lastActiveWorkflowId.current;
+              lastActiveWorkflowId.current = null;
+              
+              // Fetch final status
+              const statusRes = await fetch(`${backendUrl}/api/workflows/${wfId}/execution-status`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                
+                // Broadcast final completion status
+                window.dispatchEvent(new CustomEvent('aura-notification', {
+                  detail: {
+                    id: `wf-end-${wfId}-${Date.now()}`,
+                    title: `Pipeline ${statusData.status}`,
+                    message: `Workflow "${statusData.status === 'Completed' ? 'Benefits of AI' : 'Agent Tasks'}" is ${statusData.status.toLowerCase()}.`,
+                    type: statusData.status === 'Completed' ? 'success' : 'error',
+                    timestamp: new Date().toISOString()
+                  }
+                }));
+              }
+            }
           }
         }
       } catch (err) {
@@ -59,6 +104,17 @@ const AppContent: React.FC = () => {
   const handleCommandProcessed = (command: Command) => {
     setSelectedCommand(command);
     setActiveWorkflow(null);
+
+    // Broadcast command received notification
+    window.dispatchEvent(new CustomEvent('aura-notification', {
+      detail: {
+        id: `cmd-${command.id}-${Date.now()}`,
+        title: 'Directive Registered',
+        message: `NLP intent resolved to: ${command.intent.replace('_', ' ').toUpperCase()}`,
+        type: 'success',
+        timestamp: new Date().toISOString()
+      }
+    }));
   };
 
   if (loading) {
