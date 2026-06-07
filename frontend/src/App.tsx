@@ -101,9 +101,8 @@ const AppContent: React.FC = () => {
     return () => clearInterval(interval);
   }, [token, activeWorkflow]);
 
-  const handleCommandProcessed = (command: Command) => {
+  const handleCommandProcessed = async (command: Command) => {
     setSelectedCommand(command);
-    setActiveWorkflow(null);
 
     // Broadcast command received notification
     window.dispatchEvent(new CustomEvent('aura-notification', {
@@ -115,6 +114,40 @@ const AppContent: React.FC = () => {
         timestamp: new Date().toISOString()
       }
     }));
+
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+      
+      // 1. Auto generate workflow blueprint
+      const genRes = await fetch(`${backendUrl}/api/workflows/generate`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ command_id: command.id }),
+      });
+      
+      if (!genRes.ok) throw new Error('Auto workflow generation failed');
+      const workflowData: Workflow = await genRes.json();
+      
+      // 2. Auto trigger execution run
+      const execRes = await fetch(`${backendUrl}/api/workflows/${workflowData.id}/execute`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!execRes.ok) throw new Error('Auto workflow execution failed');
+      
+      // 3. Update active states and transition page layout
+      setActiveWorkflow(workflowData);
+      setActiveTab('execution-monitor');
+      
+    } catch (err) {
+      console.error('Failed to auto-execute compiled workflow', err);
+    }
   };
 
   if (loading) {
