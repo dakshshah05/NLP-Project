@@ -84,8 +84,53 @@ AURA AI Autonomous Agent Engine"""
                 smtp_user = os.getenv("SMTP_USER")
                 smtp_password = os.getenv("SMTP_PASSWORD")
                 resend_api_key = os.getenv("RESEND_API_KEY")
+                brevo_api_key = os.getenv("BREVO_API_KEY")
+                brevo_sender_email = os.getenv("BREVO_SENDER_EMAIL")
                 
-                if resend_api_key:
+                if brevo_api_key and brevo_sender_email:
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", f"BREVO_API_KEY found. Attempting to send email to {recipient} via Brevo HTTP API...")
+                    try:
+                        import urllib.request
+                        import urllib.error
+                        import json
+                        
+                        url = "https://api.brevo.com/v3/smtp/email"
+                        headers = {
+                            "accept": "application/json",
+                            "api-key": brevo_api_key,
+                            "content-type": "application/json"
+                        }
+                        payload = {
+                            "sender": {
+                                "name": "AURA AI Agent",
+                                "email": brevo_sender_email
+                            },
+                            "to": [
+                                {
+                                    "email": recipient
+                                }
+                            ],
+                            "subject": subject,
+                            "textContent": body_content
+                        }
+                        req_data = json.dumps(payload).encode("utf-8")
+                        req = urllib.request.Request(url, data=req_data, headers=headers, method="POST")
+                        with urllib.request.urlopen(req) as res:
+                            resp = json.loads(res.read().decode("utf-8"))
+                            self._add_log_firestore(exec_ref, agent_name, "SUCCESS", f"Email successfully sent to {recipient} via Brevo HTTP API (Message ID: {resp.get('messageId')}).")
+                    except urllib.error.HTTPError as http_err:
+                        node_success = False
+                        err_body = http_err.read().decode("utf-8")
+                        try:
+                            err_json = json.loads(err_body)
+                            detailed_message = err_json.get("message", err_body)
+                        except Exception:
+                            detailed_message = err_body
+                        error_message = f"Failed to send email via Brevo API ({http_err.code}): {detailed_message}"
+                    except Exception as err:
+                        node_success = False
+                        error_message = f"Failed to send email via Brevo API: {str(err)}"
+                elif resend_api_key:
                     self._add_log_firestore(exec_ref, agent_name, "INFO", f"RESEND_API_KEY found. Attempting to send email to {recipient} via Resend HTTP API...")
                     try:
                         import urllib.request

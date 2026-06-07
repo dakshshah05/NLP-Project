@@ -67,6 +67,38 @@ def generate_workflow(req: WorkflowGenReq, user: dict = Depends(get_current_user
         nodes=nodes_list
     )
 
+@router.get("/active-execution")
+def get_active_execution(user: dict = Depends(get_current_user)):
+    uid = user["uid"]
+    
+    # Query executions where status is "Running" and userId is uid
+    active_execs_ref = db_firestore.collection("executions")\
+        .where("status", "==", "Running")\
+        .where("userId", "==", uid)
+        
+    active_execs = active_execs_ref.get()
+    if not active_execs:
+        return {"active": False}
+        
+    sorted_execs = sorted(active_execs, key=lambda x: x.to_dict().get("started_at", ""), reverse=True)
+    latest_exec = sorted_execs[0].to_dict()
+    wf_id = latest_exec.get("workflowId")
+    
+    if wf_id:
+        wf_doc = db_firestore.collection("workflows").document(wf_id).get()
+        if wf_doc.exists:
+            wf_data = wf_doc.to_dict()
+            return {
+                "active": True,
+                "workflow_id": wf_id,
+                "name": wf_data.get("name"),
+                "status": wf_data.get("status"),
+                "success_rate": wf_data.get("success_rate", 0.0),
+                "created_at": wf_data.get("created_at")
+            }
+            
+    return {"active": False}
+
 @router.get("/{id}", response_model=WorkflowResponse)
 def get_workflow(id: str, user: dict = Depends(get_current_user)):
     wf_ref = db_firestore.collection("workflows").document(id)

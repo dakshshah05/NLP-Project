@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
@@ -16,10 +16,45 @@ import type { Command, Workflow } from './types';
 import { LogIn, KeyRound, Globe } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { user, loading, loginWithGoogle } = useAuth();
+  const { user, token, loading, loginWithGoogle } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedCommand, setSelectedCommand] = useState<Command | null>(null);
   const [activeWorkflow, setActiveWorkflow] = useState<Workflow | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const checkActiveExecution = async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+        const res = await fetch(`${backendUrl}/api/workflows/active-execution`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.active && (!activeWorkflow || activeWorkflow.id !== data.workflow_id)) {
+            setActiveWorkflow({
+              id: data.workflow_id,
+              name: data.name,
+              status: data.status,
+              success_rate: data.success_rate,
+              created_at: data.created_at,
+              command_id: null
+            });
+            setActiveTab('execution-monitor');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to poll active executions', err);
+      }
+    };
+
+    checkActiveExecution();
+    const interval = setInterval(checkActiveExecution, 3000);
+    return () => clearInterval(interval);
+  }, [token, activeWorkflow]);
 
   const handleCommandProcessed = (command: Command) => {
     setSelectedCommand(command);
