@@ -89,9 +89,10 @@ AURA AI Autonomous Agent Engine"""
                     self._add_log_firestore(exec_ref, agent_name, "INFO", f"RESEND_API_KEY found. Attempting to send email to {recipient} via Resend HTTP API...")
                     try:
                         import urllib.request
+                        import urllib.error
                         import json
                         
-                        from_email = os.getenv("RESEND_FROM_EMAIL", "AURA AI Agent <onboarding@resend.dev>")
+                        from_email = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
                         
                         url = "https://api.resend.com/emails"
                         headers = {
@@ -109,6 +110,15 @@ AURA AI Autonomous Agent Engine"""
                         with urllib.request.urlopen(req) as res:
                             resp = json.loads(res.read().decode("utf-8"))
                             self._add_log_firestore(exec_ref, agent_name, "SUCCESS", f"Email successfully sent to {recipient} via Resend API (ID: {resp.get('id')}).")
+                    except urllib.error.HTTPError as http_err:
+                        node_success = False
+                        err_body = http_err.read().decode("utf-8")
+                        try:
+                            err_json = json.loads(err_body)
+                            detailed_message = err_json.get("message", err_body)
+                        except Exception:
+                            detailed_message = err_body
+                        error_message = f"Failed to send email via Resend API ({http_err.code}): {detailed_message}"
                     except Exception as resend_err:
                         node_success = False
                         error_message = f"Failed to send email via Resend API: {str(resend_err)}"
