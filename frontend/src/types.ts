@@ -41,6 +41,13 @@ export interface Command {
     inputs: Record<string, any>;
     outputs: Record<string, any>;
   }[];
+  nlp_pipeline_steps?: {
+    step: number;
+    name: string;
+    description: string;
+    inputs: Record<string, any>;
+    outputs: Record<string, any>;
+  }[];
   created_at: string;
 }
 

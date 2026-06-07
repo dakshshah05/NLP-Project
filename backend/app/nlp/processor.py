@@ -339,7 +339,206 @@ class NLPProcessor:
 
         return tasks
 
+    def generate_nlp_pipeline(self, text: str, intent: str, entities: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
+        steps = []
+        
+        # Ensure NLTK packages are downloaded/available
+        try:
+            import nltk
+            for res in ['punkt', 'averaged_perceptron_tagger', 'stopwords', 'wordnet', 'omw-1.4', 'punkt_tab', 'averaged_perceptron_tagger_eng']:
+                try:
+                    nltk.download(res, quiet=True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Step 1: Sentence Tokenization
+        sentences = []
+        try:
+            import nltk
+            sentences = nltk.sent_tokenize(text)
+        except Exception:
+            sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
+            if not sentences:
+                sentences = [text]
+                
+        steps.append({
+            "step": 1,
+            "name": "Sentence Segmentation",
+            "description": "Splitting raw input text into individual sentence units.",
+            "inputs": {"text": text},
+            "outputs": {"sentences": sentences}
+        })
+        
+        # Step 2: Word Tokenization
+        tokens = []
+        try:
+            import nltk
+            tokens = nltk.word_tokenize(text)
+        except Exception:
+            tokens = re.findall(r"\w+|[^\w\s]", text, re.UNICODE)
+            
+        steps.append({
+            "step": 2,
+            "name": "Word Tokenization",
+            "description": "Splitting sentence text into individual lexical tokens.",
+            "inputs": {"sentences": sentences},
+            "outputs": {"tokens": tokens}
+        })
+        
+        # Step 3: Stopwords Removal
+        filtered_tokens = []
+        stopwords_list = []
+        try:
+            import nltk
+            from nltk.corpus import stopwords
+            lang_mapping = {"English": "english", "Hindi": "hindi", "Kannada": "kannada"}
+            nltk_lang = lang_mapping.get(lang, "english")
+            try:
+                stopwords_list = stopwords.words(nltk_lang)
+            except Exception:
+                stopwords_list = ["a", "an", "the", "and", "or", "but", "is", "are", "to", "for", "on", "of", "with", "in"]
+            filtered_tokens = [t for t in tokens if t.lower() not in stopwords_list]
+        except Exception:
+            stopwords_list = ["a", "an", "the", "and", "or", "but", "is", "are", "to", "for", "on", "of", "with", "in"]
+            filtered_tokens = [t for t in tokens if t.lower() not in stopwords_list]
+            
+        steps.append({
+            "step": 3,
+            "name": "Stopwords Filtering",
+            "description": "Removing common grammatical words that lack semantic content.",
+            "inputs": {"tokens": tokens, "language": lang},
+            "outputs": {
+                "filtered_tokens": filtered_tokens,
+                "removed_stopwords": [t for t in tokens if t.lower() in stopwords_list]
+            }
+        })
+        
+        # Step 4: POS Tagging
+        pos_tags = []
+        try:
+            import nltk
+            nltk_pos = nltk.pos_tag(tokens)
+            tag_desc = {
+                "CC": "Coordinating conjunction", "CD": "Cardinal number", "DT": "Determiner",
+                "EX": "Existential there", "FW": "Foreign word", "IN": "Preposition or subordinating conjunction",
+                "JJ": "Adjective", "JJR": "Adjective, comparative", "JJS": "Adjective, superlative",
+                "LS": "List item marker", "MD": "Modal", "NN": "Noun, singular or mass",
+                "NNS": "Noun, plural", "NNP": "Proper noun, singular", "NNPS": "Proper noun, plural",
+                "PDT": "Predeterminer", "POS": "Possessive ending", "PRP": "Personal pronoun",
+                "PRP$": "Possessive pronoun", "RB": "Adverb", "RBR": "Adverb, comparative",
+                "RBS": "Adverb, superlative", "RP": "Particle", "SYM": "Symbol", "TO": "to",
+                "UH": "Interjection", "VB": "Verb, base form", "VBD": "Verb, past tense",
+                "VBG": "Verb, gerund or present participle", "VBN": "Verb, past participle",
+                "VBP": "Verb, non-3rd person singular present", "VBZ": "Verb, 3rd person singular present",
+                "WDT": "Wh-determiner", "WP": "Wh-pronoun", "WP$": "Possessive wh-pronoun", "WRB": "Wh-adverb"
+            }
+            pos_tags = [{"token": t, "tag": tag, "description": tag_desc.get(tag, "Punctuation/Other")} for t, tag in nltk_pos]
+        except Exception:
+            for t in tokens:
+                if t.lower() in ["create", "generate", "write", "send", "find", "search", "backup", "compress"]:
+                    tag = "VB"
+                    desc = "Verb, base form"
+                elif t.lower() in ["email", "pdf", "file", "document", "report", "basics", "nlp"]:
+                    tag = "NN"
+                    desc = "Noun, singular"
+                elif "@" in t or "." in t:
+                    tag = "NNP"
+                    desc = "Proper noun, singular"
+                elif t.lower() in ["a", "an", "the"]:
+                    tag = "DT"
+                    desc = "Determiner"
+                elif t.lower() in ["to", "on", "for", "about", "at"]:
+                    tag = "IN"
+                    desc = "Preposition"
+                else:
+                    tag = "UNK"
+                    desc = "Unknown / Other"
+                pos_tags.append({"token": t, "tag": tag, "description": desc})
+                
+        steps.append({
+            "step": 4,
+            "name": "Part-of-Speech Tagging",
+            "description": "Labeling word tokens with grammatical categories (nouns, verbs, etc.).",
+            "inputs": {"tokens": tokens},
+            "outputs": {"pos_tags": pos_tags}
+        })
+        
+        # Step 5: Lemmatization
+        lemmas = []
+        try:
+            import nltk
+            from nltk.stem import WordNetLemmatizer
+            lemmatizer = WordNetLemmatizer()
+            for item in pos_tags:
+                word = item["token"]
+                tag = item["tag"]
+                wn_tag = "n"
+                if tag.startswith("V"):
+                    wn_tag = "v"
+                elif tag.startswith("J"):
+                    wn_tag = "a"
+                elif tag.startswith("R"):
+                    wn_tag = "r"
+                try:
+                    lemma = lemmatizer.lemmatize(word, pos=wn_tag)
+                except Exception:
+                    lemma = lemmatizer.lemmatize(word)
+                lemmas.append({"token": word, "lemma": lemma})
+        except Exception:
+            for t in tokens:
+                lemma = t.lower()
+                if lemma.endswith("ing"):
+                    lemma = lemma[:-3]
+                elif lemma.endswith("ed"):
+                    lemma = lemma[:-2]
+                elif lemma.endswith("s") and not lemma.endswith("ss"):
+                    lemma = lemma[:-1]
+                lemmas.append({"token": t, "lemma": lemma})
+                
+        steps.append({
+            "step": 5,
+            "name": "Lemmatization & Normalization",
+            "description": "Reducing inflected words to their dictionary root/base form.",
+            "inputs": {"pos_tags": [{"token": x["token"], "tag": x["tag"]} for x in pos_tags]},
+            "outputs": {"lemmas": lemmas}
+        })
+        
+        # Step 6: Named Entity Recognition & Intent Matching
+        steps.append({
+            "step": 6,
+            "name": "Named Entity Recognition & Intent Identification",
+            "description": "Identifying custom named entities (recipient names, emails, URLs, files) and mapping the target intent.",
+            "inputs": {"text": text, "lemmas": [x["lemma"] for x in lemmas]},
+            "outputs": {
+                "detected_intent": intent,
+                "confidence_score": entities.get("intent_confidence", 0.95) if hasattr(entities, "get") else 0.95,
+                "extracted_entities": entities
+            }
+        })
+        
+        # Step 7: Syntactic & Semantic Action Resolution
+        semantic = self.semantic_parse(text, intent, entities)
+        context = self.context_resolution(text, entities)
+        
+        steps.append({
+            "step": 7,
+            "name": "Semantic Action Mapping & Logic Synthesis",
+            "description": "Synthesizing dependencies into a formal logic model and mapping actor, action, object, and instrument.",
+            "inputs": {"intent": intent, "entities": entities},
+            "outputs": {
+                "logical_form": semantic["logical_form"],
+                "semantic_relations": semantic["semantic_relations"],
+                "context": context
+            }
+        })
+        
+        return steps
+
     def process_command(self, text: str) -> Dict[str, Any]:
+        lang = self.detect_language(text)
+        
         # If Gemini key is set, use AI to parse the command dynamically
         if os.getenv("GEMINI_API_KEY"):
             from backend.app.nlp.gemini import call_gemini_api
@@ -404,19 +603,19 @@ Return ONLY raw JSON conforming to this schema. Do not wrap it in markdown code 
                                     
                     return {
                         "original_text": text,
-                        "language": self.detect_language(text),
+                        "language": lang,
                         "intent": intent,
                         "intent_confidence": confidence,
                         "entities": entities,
                         "semantic_parse": self.semantic_parse(text, intent, entities),
                         "context_resolution": self.context_resolution(text, entities),
-                        "task_decomposition": decomposition
+                        "task_decomposition": decomposition,
+                        "nlp_pipeline_steps": self.generate_nlp_pipeline(text, intent, entities, lang)
                     }
                 except Exception as parse_ex:
                     print(f"Failed to parse Gemini NLP response: {parse_ex}. Falling back to rule-based parser.")
 
         # Fallback to rule-based parsing
-        lang = self.detect_language(text)
         intent, confidence = self.detect_intent(text, lang)
         entities = self.extract_entities(text, lang)
         semantic = self.semantic_parse(text, intent, entities)
@@ -431,7 +630,8 @@ Return ONLY raw JSON conforming to this schema. Do not wrap it in markdown code 
             "entities": entities,
             "semantic_parse": semantic,
             "context_resolution": context,
-            "task_decomposition": decomposition
+            "task_decomposition": decomposition,
+            "nlp_pipeline_steps": self.generate_nlp_pipeline(text, intent, entities, lang)
         }
 
 nlp_processor = NLPProcessor()
