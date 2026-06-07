@@ -41,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           <h1 className="font-bold text-lg leading-none tracking-wide bg-gradient-to-r from-violet-600 to-indigo-500 bg-clip-text text-transparent dark:from-violet-400 dark:to-indigo-400">
             AURA AI
           </h1>
-          <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
+          <span className="text-[10px] uppercase font-semibold text-slate-500 dark:text-slate-400 tracking-wider">
             Autonomous Agent
           </span>
         </div>
@@ -59,10 +59,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                 isActive
                   ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20 scale-[1.02]'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/40 dark:hover:bg-white/5'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/40 dark:hover:bg-white/5'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-violet-500'}`} />
+              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-violet-500'}`} />
               {item.label}
             </button>
           );
@@ -71,14 +71,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
       {/* System Status footer */}
       <div className="p-4 border-t border-slate-200/50 dark:border-white/5 bg-slate-100/30 dark:bg-black/10">
-        <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
           <span>Engine Status</span>
           <span className="flex items-center gap-1.5 font-semibold text-emerald-500">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
             Online
           </span>
         </div>
-        <div className="text-[10px] text-slate-400/80 mt-1">
+        <div className="text-[10px] text-slate-500 dark:text-slate-400/80 mt-1">
           v1.4.0 (FastAPI + React)
         </div>
       </div>
