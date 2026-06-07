@@ -332,6 +332,82 @@ class NLPProcessor:
         return tasks
 
     def process_command(self, text: str) -> Dict[str, Any]:
+        # If Gemini key is set, use AI to parse the command dynamically
+        if os.getenv("GEMINI_API_KEY"):
+            from backend.app.nlp.gemini import call_gemini_api
+            
+            system_instruction = """You are an NLP parser for AURA AI, an autonomous multi-agent system.
+Your job is to parse the user's input command and return a structured JSON response.
+
+Intents:
+- SEND_EMAIL: User wants to compose and send an email. If they mention creating a PDF/document and sending it, the intent is SEND_EMAIL.
+- FIND_DOCUMENT: User wants to search/retrieve a document.
+- AUTOMATE_BROWSER: User wants to scrape a website, browse the web, or download something from a URL.
+- PLAN_SCHEDULE: User wants to plan a schedule, set a reminder, or generic planning.
+- MANAGE_FILES: User wants to backup, copy, move, compress, or manage files.
+
+JSON Structure:
+{
+  "intent": "SEND_EMAIL" | "FIND_DOCUMENT" | "AUTOMATE_BROWSER" | "PLAN_SCHEDULE" | "MANAGE_FILES",
+  "intent_confidence": 0.0 to 1.0,
+  "entities": {
+    "recipient": "email address or name of recipient (or null)",
+    "subject": "email subject (or null)",
+    "filename": "name of the file (e.g. benefits_of_ai.pdf or null)",
+    "url": "url to browse/scrape (or null)",
+    "date_time": "date/time mentioned (or null)",
+    "file_topic": "topic/subject of file to create/find (e.g., 'Benefits of AI')",
+    "create_file": true | false (set to true if user specifically asks to create, write, generate, or send a new file/PDF on a topic)
+  },
+  "task_decomposition": [
+    // Array of tasks to execute in sequence.
+    // If intent is SEND_EMAIL:
+    // 1. NLP Node:
+    //    {"id": "node-nlp", "label": "NLP Intent & Entity Parse", "type": "planner", "inputs": {"text": "prompt"}, "outputs": {}}
+    // 2. Document Creation Node (ONLY if create_file is true):
+    //    {"id": "node-create-doc", "label": "Create Document: benefits_of_ai.pdf", "type": "document", "inputs": {"filename": "benefits_of_ai.pdf", "topic": "Benefits of AI", "action": "create"}, "outputs": {"filepath": "/workspace/benefits_of_ai.pdf"}}
+    // 3. Email Node:
+    //    {"id": "node-email", "label": "Compose Email to <recipient>", "type": "email", "inputs": {"to": "<recipient>", "subject": "<subject>", "attachment": "/workspace/benefits_of_ai.pdf" (if create_file is true) or null}, "outputs": {}}
+    // 4. Memory/Verify Node:
+    //    {"id": "node-complete", "label": "Verify Execution and Store Memory", "type": "memory", "inputs": {"status": "Completed successfully"}, "outputs": {}}
+  ]
+}
+
+Ensure the task_decomposition is fully filled based on the intent and entities.
+Return ONLY raw JSON conforming to this schema. Do not wrap it in markdown code blocks."""
+            
+            gemini_response = call_gemini_api(text, system_instruction=system_instruction, json_mode=True)
+            if gemini_response:
+                try:
+                    import json
+                    parsed = json.loads(gemini_response.strip())
+                    
+                    intent = parsed.get("intent", "PLAN_SCHEDULE")
+                    confidence = parsed.get("intent_confidence", 0.95)
+                    entities = parsed.get("entities", {})
+                    decomposition = parsed.get("task_decomposition", [])
+                    
+                    if not entities.get("subject") and entities.get("file_topic"):
+                        entities["subject"] = f"{entities['file_topic']} Report"
+                        for t in decomposition:
+                            if t.get("type") == "email" and "inputs" in t:
+                                if not t["inputs"].get("subject"):
+                                    t["inputs"]["subject"] = entities["subject"]
+                                    
+                    return {
+                        "original_text": text,
+                        "language": self.detect_language(text),
+                        "intent": intent,
+                        "intent_confidence": confidence,
+                        "entities": entities,
+                        "semantic_parse": self.semantic_parse(text, intent, entities),
+                        "context_resolution": self.context_resolution(text, entities),
+                        "task_decomposition": decomposition
+                    }
+                except Exception as parse_ex:
+                    print(f"Failed to parse Gemini NLP response: {parse_ex}. Falling back to rule-based parser.")
+
+        # Fallback to rule-based parsing
         lang = self.detect_language(text)
         intent, confidence = self.detect_intent(text, lang)
         entities = self.extract_entities(text, lang)

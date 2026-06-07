@@ -4,6 +4,7 @@ import base64
 from datetime import datetime
 from google.cloud import firestore
 from backend.app.firebase_config import db_firestore
+from backend.app.nlp.gemini import call_gemini_api
 
 try:
     from fpdf import FPDF
@@ -41,9 +42,9 @@ def resolve_workspace_path(path: str) -> str:
         return os.path.join(local_dir, path.replace("/workspace/", ""))
     return path
 
-def create_pdf_report(filepath: str, topic: str):
+def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
     if not FPDF:
-        create_text_report(filepath, topic)
+        create_text_report(filepath, topic, custom_content)
         return
 
     pdf = AURAPDF()
@@ -75,7 +76,37 @@ def create_pdf_report(filepath: str, topic: str):
     pdf.set_font("helvetica", "", 10.5)
     pdf.set_text_color(30, 41, 59)
     
-    if "benefit" in topic.lower() and "ai" in topic.lower():
+    if custom_content:
+        # Render custom content with basic markdown line formatting
+        lines = custom_content.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                pdf.ln(4)
+                continue
+            
+            if line.startswith("###"):
+                pdf.ln(2)
+                pdf.set_font("helvetica", "B", 11)
+                pdf.set_text_color(24, 37, 73)
+                pdf.cell(0, 7, line.replace("###", "").strip(), ln=True)
+            elif line.startswith("##"):
+                pdf.ln(3)
+                pdf.set_font("helvetica", "B", 13)
+                pdf.set_text_color(24, 37, 73)
+                pdf.cell(0, 8, line.replace("##", "").strip(), ln=True)
+            elif line.startswith("#"):
+                pdf.ln(4)
+                pdf.set_font("helvetica", "B", 15)
+                pdf.set_text_color(24, 37, 73)
+                pdf.cell(0, 9, line.replace("#", "").strip(), ln=True)
+            else:
+                pdf.set_font("helvetica", "", 10.5)
+                pdf.set_text_color(30, 41, 59)
+                clean_line = line.replace("**", "").replace("*", "").replace("`", "")
+                pdf.multi_cell(0, 6, clean_line)
+                pdf.ln(2)
+    elif "benefit" in topic.lower() and "ai" in topic.lower():
         intro = ("Artificial Intelligence (AI) has emerged as one of the most powerful and transformative "
                  "technologies of the 21st century. By enabling machines to learn, reason, and solve complex "
                  "problems, AI is reshaping how we live, work, and interact. This report outlines the "
@@ -164,24 +195,27 @@ def create_pdf_report(filepath: str, topic: str):
 
     pdf.output(filepath)
 
-def create_text_report(filepath: str, topic: str):
+def create_text_report(filepath: str, topic: str, custom_content: str = None):
     with open(filepath, "w", encoding="utf-8") as f:
-        f.write(f"=== AURA AI RESEARCH BRIEF ===\n")
-        f.write(f"Topic: {topic}\n")
-        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"=============================\n\n")
-        
-        if "benefit" in topic.lower() and "ai" in topic.lower():
-            f.write("1. Automation and Efficiency:\n")
-            f.write("AI automates repetitive tasks to save time and reduce human error.\n\n")
-            f.write("2. Advanced Data Analysis:\n")
-            f.write("AI algorithms uncover deep patterns and correlations in data.\n\n")
-            f.write("3. Healthcare Advancements:\n")
-            f.write("AI aids in early disease detection and personalized drug discovery.\n\n")
-            f.write("Conclusion:\n")
-            f.write("AI is a transformative force that enhances productivity and quality of life.\n")
+        if custom_content:
+            f.write(custom_content)
         else:
-            f.write(f"This is a plain text report generated automatically on the topic: {topic}.\n")
+            f.write(f"=== AURA AI RESEARCH BRIEF ===\n")
+            f.write(f"Topic: {topic}\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"=============================\n\n")
+            
+            if "benefit" in topic.lower() and "ai" in topic.lower():
+                f.write("1. Automation and Efficiency:\n")
+                f.write("AI automates repetitive tasks to save time and reduce human error.\n\n")
+                f.write("2. Advanced Data Analysis:\n")
+                f.write("AI algorithms uncover deep patterns and correlations in data.\n\n")
+                f.write("3. Healthcare Advancements:\n")
+                f.write("AI aids in early disease detection and personalized drug discovery.\n\n")
+                f.write("Conclusion:\n")
+                f.write("AI is a transformative force that enhances productivity and quality of life.\n")
+            else:
+                f.write(f"This is a plain text report generated automatically on the topic: {topic}.\n")
 
 
 AGENT_CAPABILITIES = {
@@ -271,10 +305,21 @@ class AgentSimulator:
                 self._add_log_firestore(exec_ref, agent_name, "INFO", f"Generating file '{filename}' on topic '{topic}'...")
                 
                 try:
+                    custom_content = None
+                    if os.getenv("GEMINI_API_KEY"):
+                        self._add_log_firestore(exec_ref, agent_name, "INFO", f"Calling Gemini API to generate custom report content for '{topic}'...")
+                        prompt = (f"Write a detailed, comprehensive, and highly professional report on the topic: '{topic}'. "
+                                  f"Use structured headings (like # and ## and ###) and bullet points. Make it substantial and informative.")
+                        custom_content = call_gemini_api(prompt)
+                        if custom_content:
+                            self._add_log_firestore(exec_ref, agent_name, "INFO", "Gemini content generated successfully.")
+                        else:
+                            self._add_log_firestore(exec_ref, agent_name, "WARNING", "Gemini returned empty content. Falling back to template.")
+                    
                     if filename.lower().endswith(".pdf"):
-                        create_pdf_report(resolved_path, topic)
+                        create_pdf_report(resolved_path, topic, custom_content)
                     else:
-                        create_text_report(resolved_path, topic)
+                        create_text_report(resolved_path, topic, custom_content)
                     self._add_log_firestore(exec_ref, agent_name, "SUCCESS", f"Successfully generated file locally: {resolved_path}")
                     # Save the filepath in output node reference
                     node_ref.update({"outputs": {"filepath": raw_path}})
@@ -295,6 +340,19 @@ Prompt processed: {wf_doc.to_dict().get('name', 'N/A')}
 
 Best regards,
 AURA AI Autonomous Agent Engine"""
+                
+                if os.getenv("GEMINI_API_KEY"):
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", "Calling Gemini API to draft a dynamic email body...")
+                    try:
+                        email_prompt = (f"Draft a warm, professional, and concise email body (2-3 sentences) accompanying "
+                                        f"a newly created report on the subject '{subject}'. The recipient is '{recipient}'. "
+                                        f"Write only the email body without placeholders, subject line, or sign-offs (like 'Best regards').")
+                        ai_body = call_gemini_api(email_prompt)
+                        if ai_body:
+                            body_content = f"Hello,\n\n{ai_body.strip()}\n\nBest regards,\nAURA AI Autonomous Agent Engine"
+                            self._add_log_firestore(exec_ref, agent_name, "INFO", "Dynamic email body drafted successfully.")
+                    except Exception as body_ex:
+                        self._add_log_firestore(exec_ref, agent_name, "WARNING", f"Failed to draft dynamic email body: {body_ex}. Falling back to default template.")
                 
                 # Check for attachments
                 attachment_path = node_data.get("inputs", {}).get("attachment")
