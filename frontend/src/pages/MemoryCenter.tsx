@@ -198,8 +198,8 @@ export const MemoryCenter: React.FC = () => {
                     <div className="p-2 rounded-lg bg-violet-500/10 text-violet-500">
                       <Icon className="w-4 h-4" />
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-700 dark:text-slate-200 font-medium">
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-700 dark:text-slate-200 font-medium break-all whitespace-pre-wrap">
                         {result.content}
                       </p>
                       <span className="text-[9px] uppercase font-bold text-slate-400">{result.category}</span>
@@ -348,7 +348,7 @@ export const MemoryCenter: React.FC = () => {
                       <Icon className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs text-slate-700 dark:text-slate-200 font-medium">
+                      <p className="text-xs text-slate-700 dark:text-slate-200 font-medium break-all whitespace-pre-wrap">
                         {item.content}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5">

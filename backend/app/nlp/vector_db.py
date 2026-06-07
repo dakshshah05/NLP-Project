@@ -3,25 +3,8 @@ from typing import List, Dict, Any
 
 class VectorDatabaseSimulator:
     def __init__(self):
-        # Seed some default values
-        self.memories = [
-            # Contacts
-            {"id": "c1", "category": "contacts", "content": "Priya Sharma - Senior Product Owner (email: priya.sharma@aura.ai, phone: +91 98765 43210)"},
-            {"id": "c2", "category": "contacts", "content": "Ramesh Kumar - DevOps Director (email: ramesh.k@aura.ai, office: Bangalore HQ)"},
-            {"id": "c3", "category": "contacts", "content": "John Doe - Client Support Coordinator (email: j.doe@external.com)"},
-            # Known Documents
-            {"id": "d1", "category": "documents", "content": "Q3 Enterprise Strategy Report: Highlighting integration of Ollama, spaCy, and PostgreSQL vectors for client productivity automations."},
-            {"id": "d2", "category": "documents", "content": "Security Audit Guidelines v2: Documenting PostgreSQL database security policies, ChromaDB authorization standards, and SSL configurations."},
-            {"id": "d3", "category": "documents", "content": "Email Marketing Playbook: Draft blueprints and email templates for weekly customer engagement operations."},
-            # User Preferences
-            {"id": "p1", "category": "preferences", "content": "Language Preference: English (Primary), Hindi (Secondary), Kannada (Tertiary)"},
-            {"id": "p2", "category": "preferences", "content": "Default Execution Agent: Planner Agent"},
-            {"id": "p3", "category": "preferences", "content": "Theme preference: Dark Mode (Glassmorphism UI active)"},
-            # Previous Commands
-            {"id": "cmd1", "category": "commands", "content": "Send Q3 Strategy Report to Priya Sharma via email"},
-            {"id": "cmd2", "category": "commands", "content": "Check website https://news.ycombinator.com and backup titles to report.csv"},
-            {"id": "cmd3", "category": "commands", "content": "Compress workspace log documents and email to Ramesh Kumar"}
-        ]
+        # Empty memories so only custom user database memories are used
+        self.memories = []
 
     def add_item(self, category: str, content: str) -> Dict[str, Any]:
         item_id = f"custom_{len(self.memories) + 1}"
