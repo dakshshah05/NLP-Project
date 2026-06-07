@@ -93,7 +93,7 @@ def get_dashboard_stats(user: dict = Depends(get_current_user)):
         if status_val == "Pending": pending += 1
         elif status_val == "Running": running += 1
         elif status_val == "Completed": completed += 1
-        elif status_val == "Failed": failed += 1
+        elif status_val in ["Failed", "Stopped", "Cancelled"]: failed += 1
 
     workflow_stats = {
         "pending": pending,

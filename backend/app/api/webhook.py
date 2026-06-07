@@ -43,7 +43,7 @@ def reply_to_telegram(chat_id: int, text: str):
         headers={"Content-Type": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req) as res:
+        with urllib.request.urlopen(req, timeout=5) as res:
             res.read()
         print(f"Successfully sent Telegram reply to chat_id {chat_id}")
     except Exception as e:
@@ -167,14 +167,16 @@ def telegram_webhook(
     chat_id = update.message.chat.id
     prompt_text = update.message.text
     
-    try:
-        # Trigger workflow
-        workflow_title = trigger_agent_workflow(prompt_text, background_tasks)
-        reply_text = f"🤖 AURA AI: Triggered workflow '{workflow_title}'. Monitor its live progress in your dashboard!"
-    except Exception as e:
-        reply_text = f"❌ AURA AI: Failed to process command. Error: {str(e)}"
-        
-    # Send reply back to Telegram chat
-    reply_to_telegram(chat_id, reply_text)
-    
+    def process_telegram_async():
+        try:
+            # Trigger workflow
+            workflow_title = trigger_agent_workflow(prompt_text, background_tasks)
+            reply_text = f"🤖 AURA AI: Triggered workflow '{workflow_title}'. Monitor its live progress in your dashboard!"
+        except Exception as e:
+            reply_text = f"❌ AURA AI: Failed to process command. Error: {str(e)}"
+            
+        # Send reply back to Telegram chat
+        reply_to_telegram(chat_id, reply_text)
+
+    background_tasks.add_task(process_telegram_async)
     return {"status": "success"}

@@ -138,6 +138,33 @@ class NLPProcessor:
         if file_matches:
             entities["filename"] = file_matches[0]
 
+        # File generation request check
+        # Match pattern: create/generate/write a/an [format/type] on/about [topic]
+        create_match = re.search(
+            r"(?:create|generate|write|make|send|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)?\s*([\w\s'-]+?)(?:\s+(?:and\s+)?(?:send|mail|email|post|to|at)\b|$)", 
+            text, 
+            re.IGNORECASE
+        )
+        if create_match:
+            file_type = create_match.group(1).lower()
+            topic = create_match.group(2).strip()
+            
+            # Map type to extension
+            ext = ".pdf"
+            if "txt" in file_type or "text" in file_type:
+                ext = ".txt"
+            elif "csv" in file_type:
+                ext = ".csv"
+                
+            if not entities.get("filename"):
+                # Clean topic to make a nice filename
+                clean_topic = re.sub(r"[^\w\s-]", "", topic).strip().lower()
+                clean_topic = re.sub(r"[-\s]+", "_", clean_topic)
+                entities["filename"] = f"{clean_topic}{ext}"
+            
+            entities["file_topic"] = topic
+            entities["create_file"] = True
+
         # Recipient Name heuristics (e.g., "to Ramesh", "to Priya", "send to John")
         to_matches = re.findall(r"(?:to|भेजें|ಕಳುಹಿಸು)\s+([A-Z][a-z]+|[a-zA-Z\u0900-\u097F\u0C80-\u0CFF]+)", text)
         if to_matches and not entities["recipient"]:
@@ -147,6 +174,9 @@ class NLPProcessor:
         about_matches = re.findall(r"(?:about|subject|विषय|ಬಗ್ಗೆ)\s+['\"]?([^'\"]+?)['\"]?(?:\s|$)", text, re.IGNORECASE)
         if about_matches:
             entities["subject"] = about_matches[0]
+
+        if not entities.get("subject") and entities.get("file_topic"):
+            entities["subject"] = f"{entities['file_topic']} Report"
 
         # spaCy high-fidelity additions if loaded
         if nlp_spacy and lang == "English":
@@ -202,8 +232,20 @@ class NLPProcessor:
         })
 
         if intent == "SEND_EMAIL":
-            # Flow: Find attachment/doc if mentioned -> Write draft -> Send email
-            if entities.get("filename"):
+            # Flow: Find or create attachment/doc if mentioned -> Write draft -> Send email
+            if entities.get("create_file"):
+                tasks.append({
+                    "id": "node-create-doc",
+                    "label": f"Create Document: {entities['filename']}",
+                    "type": "document",
+                    "inputs": {
+                        "filename": entities["filename"],
+                        "topic": entities.get("file_topic", "General Report"),
+                        "action": "create"
+                    },
+                    "outputs": {"filepath": f"/workspace/{entities['filename']}"}
+                })
+            elif entities.get("filename"):
                 tasks.append({
                     "id": "node-retrieve",
                     "label": f"Find File: {entities['filename']}",

@@ -198,3 +198,31 @@ def get_execution_status(id: str, user: dict = Depends(get_current_user)):
         "logs": logs
     }
 
+
+@router.post("/{id}/stop")
+def stop_workflow(id: str, user: dict = Depends(get_current_user)):
+    uid = user["uid"]
+    
+    # 1. Fetch Workflow
+    wf_ref = db_firestore.collection("workflows").document(id)
+    wf_doc = wf_ref.get()
+    if not wf_doc.exists:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+        
+    # 2. Find running executions for this workflow
+    execs_ref = db_firestore.collection("executions")\
+        .where("workflowId", "==", id)\
+        .where("status", "==", "Running")
+        
+    execs = execs_ref.get()
+    for doc in execs:
+        doc.reference.update({
+            "status": "Stopped",
+            "completed_at": datetime.utcnow().isoformat()
+        })
+        
+    # 3. Update workflow status to Stopped
+    wf_ref.update({"status": "Stopped"})
+    
+    return {"status": "Stopped"}
+

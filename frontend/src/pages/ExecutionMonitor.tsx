@@ -7,7 +7,8 @@ import {
   Clock, 
   CheckCircle, 
   AlertCircle, 
-  Loader
+  Loader,
+  Square
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -42,6 +43,24 @@ export const ExecutionMonitor: React.FC<ExecutionMonitorProps> = ({ activeWorkfl
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const stopWorkflow = async () => {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${backendUrl}/api/workflows/${selectedWorkflowId}/stop`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setStatus('Stopped');
+        fetchStatus(selectedWorkflowId);
+      }
+    } catch (err) {
+      console.error('Failed to stop workflow:', err);
     }
   };
 
@@ -94,6 +113,7 @@ export const ExecutionMonitor: React.FC<ExecutionMonitorProps> = ({ activeWorkfl
               status === 'Running' ? 'bg-violet-500/10 text-violet-500 border-violet-500/20' :
               status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
               status === 'Failed' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+              status === 'Stopped' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
               'bg-slate-500/10 text-slate-500 border-slate-500/20'
             }`}>
               <Activity className={`w-5 h-5 ${status === 'Running' ? 'animate-spin' : ''}`} />
@@ -107,9 +127,19 @@ export const ExecutionMonitor: React.FC<ExecutionMonitorProps> = ({ activeWorkfl
           </div>
 
           <div className="flex items-center gap-3">
+            {status === 'Running' && (
+              <button
+                onClick={stopWorkflow}
+                className="text-xs bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-lg shadow-red-500/20"
+              >
+                <Square className="w-2.5 h-2.5 fill-current" />
+                Stop
+              </button>
+            )}
             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border uppercase ${
               status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
               status === 'Failed' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+              status === 'Stopped' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
               status === 'Running' ? 'bg-violet-500/10 text-violet-500 border-violet-500/20' :
               'bg-slate-500/10 text-slate-500 border-slate-500/20'
             }`}>
