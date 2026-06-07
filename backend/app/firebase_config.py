@@ -89,7 +89,7 @@ class MockDocumentReference:
             self.db[self.path] = {}
         existing = self.db[self.path]
         for k, v in data.items():
-            if (hasattr(v, 'values') and not callable(v.values)) or v.__class__.__name__ == 'ArrayUnion':
+            if not isinstance(v, dict) and ((hasattr(v, 'values') and not callable(v.values)) or v.__class__.__name__ == 'ArrayUnion'):
                 vals = getattr(v, 'values', [])
                 existing[k] = existing.get(k, []) + list(vals)
             else:
