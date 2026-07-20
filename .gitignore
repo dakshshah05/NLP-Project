@@ -72,3 +72,6 @@ Thumbs.db
 # Local workspace folder for dynamic file generation
 workspace/
 
+# Local python binary models
+backend/app/nlp/models/*.pkl
+

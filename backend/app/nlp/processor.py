@@ -66,7 +66,63 @@ INTENT_MAP = {
 
 class NLPProcessor:
     def __init__(self):
-        pass
+        self.vectorizer = None
+        self.classifier = None
+        
+        # Initialize NLTK resources once on startup
+        try:
+            import nltk
+            for res in ['punkt', 'averaged_perceptron_tagger', 'stopwords', 'wordnet', 'omw-1.4', 'punkt_tab', 'averaged_perceptron_tagger_eng']:
+                try:
+                    nltk.download(res, quiet=True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        import json
+        import pickle
+        import numpy as np
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.linear_model import LogisticRegression
+        
+        model_dir = os.path.join(os.path.dirname(__file__), "models")
+        json_path = os.path.join(model_dir, "intent_model.json")
+        vec_path = os.path.join(model_dir, "vectorizer.pkl")
+        model_path = os.path.join(model_dir, "model.pkl")
+        
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    model_json = json.load(f)
+                
+                # Reconstruct Vectorizer
+                self.vectorizer = TfidfVectorizer(
+                    ngram_range=tuple(model_json["ngram_range"]),
+                    sublinear_tf=model_json["sublinear_tf"]
+                )
+                self.vectorizer.vocabulary_ = model_json["vocabulary"]
+                self.vectorizer.idf_ = np.array(model_json["idf"])
+                self.vectorizer.fixed_vocabulary_ = True
+                
+                # Reconstruct LogisticRegression Classifier
+                self.classifier = LogisticRegression()
+                self.classifier.coef_ = np.array(model_json["coef"])
+                self.classifier.intercept_ = np.array(model_json["intercept"])
+                self.classifier.classes_ = np.array(model_json["classes"])
+                
+                print("NLPProcessor: Successfully reconstructed local model from JSON configuration.")
+            except Exception as e:
+                print("NLPProcessor: Failed to reconstruct local model from JSON:", e)
+        elif os.path.exists(vec_path) and os.path.exists(model_path):
+            try:
+                with open(vec_path, 'rb') as f:
+                    self.vectorizer = pickle.load(f)
+                with open(model_path, 'rb') as f:
+                    self.classifier = pickle.load(f)
+                print("NLPProcessor: Successfully loaded local model from pickle files.")
+            except Exception as e:
+                print("NLPProcessor: Failed to load pickle models:", e)
 
     def detect_language(self, text: str) -> str:
         # Simple heuristic check for Indic scripts or English
@@ -87,6 +143,21 @@ class NLPProcessor:
             return "SEND_EMAIL", 0.99
         if re.search(r"https?://[^\s]+", text_lower):
             return "AUTOMATE_BROWSER", 0.99
+            
+        # Try local trained model first if loaded
+        if self.vectorizer is not None and self.classifier is not None:
+            try:
+                features = self.vectorizer.transform([text])
+                intent = self.classifier.predict(features)[0]
+                if hasattr(self.classifier, "predict_proba"):
+                    probs = self.classifier.predict_proba(features)[0]
+                    confidence = float(max(probs))
+                else:
+                    confidence = 0.90
+                print(f"NLPProcessor: Local model predicted intent '{intent}' with confidence {confidence:.2f}")
+                return intent, confidence
+            except Exception as e:
+                print("NLPProcessor: Local model prediction failed, falling back to heuristics:", e)
 
         lang_code = "en"
         if lang == "Hindi":
@@ -341,17 +412,6 @@ class NLPProcessor:
 
     def generate_nlp_pipeline(self, text: str, intent: str, entities: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
         steps = []
-        
-        # Ensure NLTK packages are downloaded/available
-        try:
-            import nltk
-            for res in ['punkt', 'averaged_perceptron_tagger', 'stopwords', 'wordnet', 'omw-1.4', 'punkt_tab', 'averaged_perceptron_tagger_eng']:
-                try:
-                    nltk.download(res, quiet=True)
-                except Exception:
-                    pass
-        except Exception:
-            pass
 
         # Step 1: Sentence Tokenization
         sentences = []
