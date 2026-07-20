@@ -9,3 +9,10 @@ firebase-admin>=6.5.0
 cloudinary>=1.39.0
 fpdf2>=2.7.9
 nltk>=3.8
+gensim
+torch
+transformers
+scikit-learn
+matplotlib
+seaborn
+ipykernel
