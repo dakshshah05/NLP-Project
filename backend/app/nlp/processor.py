@@ -613,6 +613,16 @@ Intents:
 - PLAN_SCHEDULE: User wants to plan a schedule, set a reminder, or generic planning.
 - MANAGE_FILES: User wants to backup, copy, move, compress, or manage files.
 
+Rules for Entity Extraction (CRITICAL):
+1. file_topic: Extract the complete, verbatim topic of the document to be created or searched. Do NOT truncate or shorten it. 
+   - Example prompt: "Create a PDF on how to use Gemini and send to john@example.com" -> file_topic MUST be "how to use Gemini" (NOT "how").
+   - Example prompt: "Write a document on benefits of AI" -> file_topic MUST be "benefits of AI".
+2. filename: Generate a clean, lowercase, snake_case filename with the correct extension based on the full file_topic.
+   - Example prompt: "Create a PDF on how to use Gemini..." -> filename MUST be "how_to_use_gemini.pdf".
+3. subject: Generate a professional email subject line if sending an email, or null.
+4. recipient: Extract email address or name of recipient.
+5. create_file: Set to true if the user specifically requests to write, create, generate, or make a new document/PDF.
+
 JSON Structure:
 {
   "intent": "SEND_EMAIL" | "FIND_DOCUMENT" | "AUTOMATE_BROWSER" | "PLAN_SCHEDULE" | "MANAGE_FILES",
@@ -623,24 +633,24 @@ JSON Structure:
     "filename": "name of the file (e.g. benefits_of_ai.pdf or null)",
     "url": "url to browse/scrape (or null)",
     "date_time": "date/time mentioned (or null)",
-    "file_topic": "topic/subject of file to create/find (e.g., 'Benefits of AI')",
-    "create_file": true | false (set to true if user specifically asks to create, write, generate, or send a new file/PDF on a topic)
+    "file_topic": "topic/subject of file to create/find (or null)",
+    "create_file": true | false
   },
   "task_decomposition": [
     // Array of tasks to execute in sequence.
-    // If intent is SEND_EMAIL:
+    // If intent is SEND_EMAIL and create_file is true:
     // 1. NLP Node:
     //    {"id": "node-nlp", "label": "NLP Intent & Entity Parse", "type": "planner", "inputs": {"text": "prompt"}, "outputs": {}}
-    // 2. Document Creation Node (ONLY if create_file is true):
-    //    {"id": "node-create-doc", "label": "Create Document: benefits_of_ai.pdf", "type": "document", "inputs": {"filename": "benefits_of_ai.pdf", "topic": "Benefits of AI", "action": "create"}, "outputs": {"filepath": "/workspace/benefits_of_ai.pdf"}}
+    // 2. Document Creation Node:
+    //    {"id": "node-create-doc", "label": "Create Document: how_to_use_gemini.pdf", "type": "document", "inputs": {"filename": "how_to_use_gemini.pdf", "topic": "how to use Gemini", "action": "create"}, "outputs": {"filepath": "/workspace/how_to_use_gemini.pdf"}}
     // 3. Email Node:
-    //    {"id": "node-email", "label": "Compose Email to <recipient>", "type": "email", "inputs": {"to": "<recipient>", "subject": "<subject>", "attachment": "/workspace/benefits_of_ai.pdf" (if create_file is true) or null}, "outputs": {}}
+    //    {"id": "node-email", "label": "Compose Email to daksh.kumar@bcah.christuniversity.in", "type": "email", "inputs": {"to": "daksh.kumar@bcah.christuniversity.in", "subject": "how to use Gemini Report", "attachment": "/workspace/how_to_use_gemini.pdf"}, "outputs": {}}
     // 4. Memory/Verify Node:
     //    {"id": "node-complete", "label": "Verify Execution and Store Memory", "type": "memory", "inputs": {"status": "Completed successfully"}, "outputs": {}}
   ]
 }
 
-Ensure the task_decomposition is fully filled based on the intent and entities.
+Ensure that the values inside "task_decomposition" nodes (like "label", "filename", "topic", "subject", "attachment") use the FULL extracted entities verbatim.
 Return ONLY raw JSON conforming to this schema. Do not wrap it in markdown code blocks."""
             
             gemini_response = call_gemini_api(text, system_instruction=system_instruction, json_mode=True)
