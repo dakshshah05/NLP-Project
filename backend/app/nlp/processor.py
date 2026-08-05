@@ -220,7 +220,7 @@ class NLPProcessor:
         # File generation request check
         # Match pattern: create/generate/write a/an [format/type] on/about [topic]
         create_match = re.search(
-            r"(?:create|generate|write|make|send|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)?\s*([\w\s'-]+?)(?:\s+(?:and\s+)?(?:send|sent|mail|email|post|to|at)\b|$)", 
+            r"(?:create|generate|write|make|send|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)?\s*([\w\s'-]+?)(?:\s+(?:and\s+)?(?:send|sent|mail|email|post)\b|\s+(?-i:(?:[Tt]o|[Aa]t)\s+(?:[\w\.-]+@[\w\.-]+\.\w+|[A-Z][\w\.-]+))|$)", 
             text, 
             re.IGNORECASE
         )
