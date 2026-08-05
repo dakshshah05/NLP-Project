@@ -34,12 +34,8 @@ try:
 except Exception:
     nlp_spacy = None
 
-# ── Language Detection ───────────────────────────────────────────────────────
-try:
-    from langdetect import detect as langdetect_detect
-    LANGDETECT_AVAILABLE = True
-except ImportError:
-    LANGDETECT_AVAILABLE = False
+# ── Language Detection Helper ────────────────────────────────────────────────
+LANGDETECT_AVAILABLE = True
 
 # ── Supported Languages ──────────────────────────────────────────────────────
 LANGUAGE_MAP = {
@@ -166,8 +162,9 @@ class NLPProcessor:
         if any(0x0B80 <= ord(c) <= 0x0BFF for c in text): return "Tamil"
         hinglish = {"bhejo","karo","lo","chahiye","likho","dhundo","banao","batao","dikhao","ko","ke","ka","ki","se","mein","aur","nahi","hai"}
         if len(set(text.lower().split()) & hinglish) >= 2: return "Hinglish"
-        if LANGDETECT_AVAILABLE and len(text.strip()) > 5:
+        if len(text.strip()) > 5:
             try:
+                from langdetect import detect as langdetect_detect
                 detected = langdetect_detect(text)
                 return LANGUAGE_MAP.get(detected, "English")
             except Exception:
