@@ -218,15 +218,31 @@ class NLPProcessor:
             entities["filename"] = file_matches[0]
 
         # File generation request check
-        # Match pattern: create/generate/write a/an [format/type] on/about [topic]
+        # Two-step approach: 1) capture raw topic blob, 2) trim recipient boundary from end
         create_match = re.search(
-            r"(?:create|generate|write|make|send|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)?\s*([\w\s'-]+?)(?:\s+(?:and\s+)?(?:send|sent|mail|email|post)\b|\s+(?-i:(?:[Tt]o|[Aa]t)\s+(?:[\w\.-]+@[\w\.-]+\.\w+|[A-Z][\w\.-]+))|$)", 
-            text, 
+            r"(?:create|generate|write|make|send|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)\s+(.+)",
+            text,
             re.IGNORECASE
         )
         if create_match:
             file_type = create_match.group(1).lower()
-            topic = create_match.group(2).strip()
+            raw_topic = create_match.group(2).strip()
+            
+            # Step 2: Remove trailing recipient/send boundary from the raw topic
+            # Matches: "and send it to <email>", "and email to <name>", "to <email>", "and send to <name>"
+            # But does NOT match "to" inside phrases like "how to use Gemini"
+            topic = re.sub(
+                r"\s+(?:and\s+)?(?:send|sent|mail|email|post)(?:\s+it)?\s+(?:to\s+\S+.*)?$"
+                r"|\s+(?:and\s+)?(?:send|sent|mail|email|post)\s*$"
+                r"|\s+to\s+[\w\.\-]+@[\w\.\-]+\.\w+.*$"
+                r"|\s+to\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s*$",
+                "",
+                raw_topic
+            ).strip()
+            
+            # Safety: if topic got emptied somehow, use the raw_topic
+            if not topic:
+                topic = raw_topic
             
             # Map type to extension
             ext = ".pdf"
@@ -599,95 +615,44 @@ class NLPProcessor:
     def process_command(self, text: str) -> Dict[str, Any]:
         lang = self.detect_language(text)
         
-        # If Gemini key is set, use AI to parse the command dynamically
+        # Step 1: Detect intent (Gemini for classification only, then local model, then heuristics)
+        intent = None
+        confidence = 0.0
+        
         if os.getenv("GEMINI_API_KEY"):
             from backend.app.nlp.gemini import call_gemini_api
             
-            system_instruction = """You are an NLP parser for AURA AI, an autonomous multi-agent system.
-Your job is to parse the user's input command and return a structured JSON response.
+            system_instruction = """You are an intent classifier for AURA AI.
+Given a user command, classify it into exactly one intent and return JSON.
 
 Intents:
-- SEND_EMAIL: User wants to compose and send an email. If they mention creating a PDF/document and sending it, the intent is SEND_EMAIL.
-- FIND_DOCUMENT: User wants to search/retrieve a document.
-- AUTOMATE_BROWSER: User wants to scrape a website, browse the web, or download something from a URL.
+- SEND_EMAIL: User wants to compose/send an email, or create a document and send it.
+- FIND_DOCUMENT: User wants to search/retrieve/find a document.
+- AUTOMATE_BROWSER: User wants to browse/scrape/download from a website or URL.
 - PLAN_SCHEDULE: User wants to plan a schedule, set a reminder, or generic planning.
 - MANAGE_FILES: User wants to backup, copy, move, compress, or manage files.
 
-Rules for Entity Extraction (CRITICAL):
-1. file_topic: Extract the complete, verbatim topic of the document to be created or searched. Do NOT truncate or shorten it. 
-   - Example prompt: "Create a PDF on how to use Gemini and send to john@example.com" -> file_topic MUST be "how to use Gemini" (NOT "how").
-   - Example prompt: "Write a document on benefits of AI" -> file_topic MUST be "benefits of AI".
-2. filename: Generate a clean, lowercase, snake_case filename with the correct extension based on the full file_topic.
-   - Example prompt: "Create a PDF on how to use Gemini..." -> filename MUST be "how_to_use_gemini.pdf".
-3. subject: Generate a professional email subject line if sending an email, or null.
-4. recipient: Extract email address or name of recipient.
-5. create_file: Set to true if the user specifically requests to write, create, generate, or make a new document/PDF.
-
-JSON Structure:
-{
-  "intent": "SEND_EMAIL" | "FIND_DOCUMENT" | "AUTOMATE_BROWSER" | "PLAN_SCHEDULE" | "MANAGE_FILES",
-  "intent_confidence": 0.0 to 1.0,
-  "entities": {
-    "recipient": "email address or name of recipient (or null)",
-    "subject": "email subject (or null)",
-    "filename": "name of the file (e.g. benefits_of_ai.pdf or null)",
-    "url": "url to browse/scrape (or null)",
-    "date_time": "date/time mentioned (or null)",
-    "file_topic": "topic/subject of file to create/find (or null)",
-    "create_file": true | false
-  },
-  "task_decomposition": [
-    // Array of tasks to execute in sequence.
-    // If intent is SEND_EMAIL and create_file is true:
-    // 1. NLP Node:
-    //    {"id": "node-nlp", "label": "NLP Intent & Entity Parse", "type": "planner", "inputs": {"text": "prompt"}, "outputs": {}}
-    // 2. Document Creation Node:
-    //    {"id": "node-create-doc", "label": "Create Document: how_to_use_gemini.pdf", "type": "document", "inputs": {"filename": "how_to_use_gemini.pdf", "topic": "how to use Gemini", "action": "create"}, "outputs": {"filepath": "/workspace/how_to_use_gemini.pdf"}}
-    // 3. Email Node:
-    //    {"id": "node-email", "label": "Compose Email to daksh.kumar@bcah.christuniversity.in", "type": "email", "inputs": {"to": "daksh.kumar@bcah.christuniversity.in", "subject": "how to use Gemini Report", "attachment": "/workspace/how_to_use_gemini.pdf"}, "outputs": {}}
-    // 4. Memory/Verify Node:
-    //    {"id": "node-complete", "label": "Verify Execution and Store Memory", "type": "memory", "inputs": {"status": "Completed successfully"}, "outputs": {}}
-  ]
-}
-
-Ensure that the values inside "task_decomposition" nodes (like "label", "filename", "topic", "subject", "attachment") use the FULL extracted entities verbatim.
-Return ONLY raw JSON conforming to this schema. Do not wrap it in markdown code blocks."""
+Return ONLY this JSON (no markdown):
+{"intent": "<INTENT>", "intent_confidence": 0.0 to 1.0}"""
             
             gemini_response = call_gemini_api(text, system_instruction=system_instruction, json_mode=True)
             if gemini_response:
                 try:
                     import json
                     parsed = json.loads(gemini_response.strip())
-                    
-                    intent = parsed.get("intent", "PLAN_SCHEDULE")
+                    intent = parsed.get("intent")
                     confidence = parsed.get("intent_confidence", 0.95)
-                    entities = parsed.get("entities", {})
-                    decomposition = parsed.get("task_decomposition", [])
-                    
-                    if not entities.get("subject") and entities.get("file_topic"):
-                        entities["subject"] = f"{entities['file_topic']} Report"
-                        for t in decomposition:
-                            if t.get("type") == "email" and "inputs" in t:
-                                if not t["inputs"].get("subject"):
-                                    t["inputs"]["subject"] = entities["subject"]
-                                    
-                    return {
-                        "original_text": text,
-                        "language": lang,
-                        "intent": intent,
-                        "intent_confidence": confidence,
-                        "entities": entities,
-                        "semantic_parse": self.semantic_parse(text, intent, entities),
-                        "context_resolution": self.context_resolution(text, entities),
-                        "task_decomposition": decomposition,
-                        "nlp_pipeline_steps": self.generate_nlp_pipeline(text, intent, entities, lang)
-                    }
                 except Exception as parse_ex:
-                    print(f"Failed to parse Gemini NLP response: {parse_ex}. Falling back to rule-based parser.")
-
-        # Fallback to rule-based parsing
-        intent, confidence = self.detect_intent(text, lang)
+                    print(f"Failed to parse Gemini intent response: {parse_ex}. Falling back.")
+        
+        # Fallback to local model / heuristic intent detection if Gemini didn't provide one
+        if not intent:
+            intent, confidence = self.detect_intent(text, lang)
+        
+        # Step 2: ALWAYS use our own verified entity extraction (never trust external API for this)
         entities = self.extract_entities(text, lang)
+        
+        # Step 3: ALWAYS build task decomposition from our own verified entities
         semantic = self.semantic_parse(text, intent, entities)
         context = self.context_resolution(text, entities)
         decomposition = self.decompose_tasks(text, intent, entities)
