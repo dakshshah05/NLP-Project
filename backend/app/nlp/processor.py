@@ -356,7 +356,7 @@ class NLPProcessor:
                 probs = self.classifier.predict_proba(features)[0] if hasattr(self.classifier, "predict_proba") else [0.9]
                 confidence = float(max(probs))
                 if confidence >= 0.55:
-                    print(f"NLPProcessor: Local model → intent='{intent}' confidence={confidence:.2f}")
+                    print(f"NLPProcessor: Local model -> intent='{intent}' confidence={confidence:.2f}")
                     return intent, confidence
             except Exception as e:
                 print(f"NLPProcessor: Model prediction failed: {e}")
@@ -533,7 +533,7 @@ class NLPProcessor:
              "description":"Detecting natural language using Unicode script ranges (Devanagari, Kannada), langdetect library, and Hinglish keyword heuristics.",
              "inputs":{"raw_text":text},"outputs":{"detected_language":lang,"library":"langdetect + Unicode + Hinglish heuristics"}},
             {"step":2,"name":"Text Normalization (Voice-Ready)",
-             "description":"NFKC Unicode normalization, voice filler removal (um/uh/like), spoken punctuation conversion, abbreviation expansion.",
+             "description":"NFKC Unicode normalization, voice filler removal (um/uh/like), spoken punctuation conversion (period -> .), abbreviation expansion.",
              "inputs":{"raw_text":text},"outputs":{"normalized_text":normalized,"voice_cleaned":text!=normalized}},
             {"step":3,"name":"Sentence Segmentation",
              "description":"Splitting text into sentence units using NLTK Punkt tokenizer.",
@@ -554,7 +554,7 @@ class NLPProcessor:
              "description":"Labeling each token with grammatical category using NLTK Averaged Perceptron Tagger (Penn Treebank tagset).",
              "inputs":{"tokens":tokens},"outputs":{"pos_tags":pos_tags[:20]}},
             {"step":9,"name":"Noun Phrase Chunking",
-             "description":"Grouping tokens into Noun Phrases using NLTK RegexpParser: NP → {<DT>?<JJ.*>*<NN.*>+}",
+             "description":"Grouping tokens into Noun Phrases using NLTK RegexpParser: NP -> {<DT>?<JJ.*>*<NN.*>+}",
              "inputs":{"pos_tags":[{"token":d["token"],"tag":d["tag"]} for d in pos_tags]},"outputs":{"noun_phrases":noun_phrases}},
             {"step":10,"name":"Named Entity Recognition (3-Layer)",
              "description":"Layer 1: Regex (emails, URLs, files). Layer 2: NLTK ne_chunk (PERSON, ORG, GPE). Layer 3: spaCy (high-accuracy NER).",
