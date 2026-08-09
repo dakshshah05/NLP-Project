@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../components/GlassCard';
 import type { Command } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { 
   Sparkles, 
   Terminal, 
@@ -21,19 +22,21 @@ interface NLPAnalysisProps {
 }
 
 export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSelectedCommand }) => {
+  const { token } = useAuth();
   const [activeStep, setActiveStep] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'pipeline' | 'diagnostics'>('pipeline');
   const [history, setHistory] = useState<Command[]>([]);
 
   useEffect(() => {
     const fetchHistory = async () => {
+      if (!token) return;
       try {
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
-        const headers: Record<string, string> = {};
-        const token = localStorage.getItem('aura_token');
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`${backendUrl}/api/command/history`, { headers });
+        const res = await fetch(`${backendUrl}/api/command/history`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (res.ok) {
           const data: Command[] = await res.json();
           setHistory(data);
@@ -42,11 +45,11 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
           }
         }
       } catch (err) {
-        console.error(err);
+        console.error('Failed to fetch command history', err);
       }
     };
     fetchHistory();
-  }, []);
+  }, [token]);
 
   if (!selectedCommand) {
     return (
