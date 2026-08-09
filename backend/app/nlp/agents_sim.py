@@ -163,8 +163,9 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
                       "good, driving innovation and improving quality of life globally.")
         pdf.multi_cell(0, 6, conclusion)
     else:
+        clean_topic = clean_text(topic)
         intro = (f"Artificial Intelligence and modern digital tools play a significant role in analyzing "
-                 f"and understanding complex topics such as {topic}. This research brief compiles key "
+                 f"and understanding complex topics such as {clean_topic}. This research brief compiles key "
                  f"dimensions and structured insights on this topic.")
         pdf.multi_cell(0, 6, intro)
         pdf.ln(6)
@@ -174,7 +175,7 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
         pdf.cell(0, 8, "Overview & Significance", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        sec1 = (f"The topic of {topic} has garnered significant interest due to its impact on technology, "
+        sec1 = (f"The topic of {clean_topic} has garnered significant interest due to its impact on technology, "
                 f"business processes, and societal workflows. Understanding its core variables is essential "
                 f"for modern analytics and strategy formulation.")
         pdf.multi_cell(0, 6, sec1)
@@ -185,7 +186,7 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
         pdf.cell(0, 8, "Key Opportunities", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        sec2 = (f"Research indicates that focusing on {topic} allows organizations to unlock new capabilities, "
+        sec2 = (f"Research indicates that focusing on {clean_topic} allows organizations to unlock new capabilities, "
                 f"increase process throughput, and align modern infrastructure with dynamic user expectations.")
         pdf.multi_cell(0, 6, sec2)
         pdf.ln(6)
@@ -195,7 +196,7 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
         pdf.cell(0, 8, "Summary", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        conclusion = (f"In conclusion, the study of {topic} demonstrates how digital systems can automate "
+        conclusion = (f"In conclusion, the study of {clean_topic} demonstrates how digital systems can automate "
                       f"retrieval and processing. Further exploration will reveal deeper patterns and long-term value.")
         pdf.multi_cell(0, 6, conclusion)
 
@@ -317,11 +318,15 @@ class AgentSimulator:
                         prompt = (f"Write a detailed, comprehensive, and highly professional report on the topic: '{topic}'. "
                                   f"IMPORTANT: Write the content in English so it can be exported cleanly to standard PDF fonts. "
                                   f"Use structured headings (like # and ## and ###) and bullet points. Make it substantial and informative.")
-                        if os.getenv("GROQ_API_KEY"):
-                            from backend.app.nlp.groq_api import call_groq_api
-                            custom_content = call_groq_api(prompt)
-                        if not custom_content and os.getenv("GEMINI_API_KEY"):
-                            custom_content = call_gemini_api(prompt)
+                        try:
+                            if os.getenv("GROQ_API_KEY"):
+                                from backend.app.nlp.groq_api import call_groq_api
+                                custom_content = call_groq_api(prompt)
+                            if not custom_content and os.getenv("GEMINI_API_KEY"):
+                                custom_content = call_gemini_api(prompt)
+                        except Exception as llm_err:
+                            self._add_log_firestore(exec_ref, agent_name, "WARNING", f"LLM generation exception: {llm_err}")
+                            custom_content = None
                             
                         if custom_content:
                             self._add_log_firestore(exec_ref, agent_name, "INFO", "AI content generated successfully.")
