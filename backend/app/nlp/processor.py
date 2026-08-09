@@ -636,23 +636,72 @@ class NLPProcessor:
         ner_results = self.recognize_entities_ner(normalized, tokens, pos_tags)
         intent, confidence = self.detect_intent(normalized, lang)
 
-        # Optional: Gemini for intent confirmation only (high-confidence threshold)
+        # Zero-shot LLM parsing when Gemini API is available (works for any sentence in any language)
         if os.getenv("GEMINI_API_KEY"):
             from backend.app.nlp.gemini import call_gemini_api
-            prompt = (f'Classify this command into exactly one intent. Return JSON only.\n'
-                      f'Intents: SEND_EMAIL, FIND_DOCUMENT, AUTOMATE_BROWSER, PLAN_SCHEDULE, MANAGE_FILES\n'
-                      f'Command: "{text}"\nReturn: {{"intent": "<INTENT>", "confidence": 0.0}}')
+            system_prompt = """You are an NLP parser for AURA AI. Parse the input command into structured JSON.
+
+Return ONLY this JSON schema (no markdown, no backticks):
+{
+  "intent": "SEND_EMAIL" | "FIND_DOCUMENT" | "AUTOMATE_BROWSER" | "PLAN_SCHEDULE" | "MANAGE_FILES",
+  "intent_confidence": 0.98,
+  "entities": {
+    "recipient": "email address or person name (or null)",
+    "subject": "email subject (or null)",
+    "filename": "snake_case filename with extension like .pdf or .txt (or null)",
+    "url": "url (or null)",
+    "date_time": "mentioned date or time (or null)",
+    "file_topic": "exact verbatim topic of document to create/search (or null)",
+    "create_file": true if command asks to create/generate a file else false,
+    "keywords": ["key", "terms"]
+  },
+  "task_decomposition": [
+    {"id": "node-nlp", "label": "NLP Intent & Entity Parse", "type": "planner", "inputs": {"text": "raw command"}, "outputs": {}},
+    {"id": "node-create-doc", "label": "Create Document: <filename>", "type": "document", "inputs": {"filename": "<filename>", "topic": "<file_topic>", "action": "create"}, "outputs": {"filepath": "/workspace/<filename>"}},
+    {"id": "node-email", "label": "Compose Email to <recipient>", "type": "email", "inputs": {"to": "<recipient>", "subject": "<subject>", "attachment": "/workspace/<filename>"}, "outputs": {"status": "sent"}}
+  ]
+}
+
+Rules:
+1. Extract the verbatim topic in file_topic (e.g. if text is in Hindi/Kannada/English, extract the topic in full without truncation).
+2. If create_file is true, include node-create-doc in task_decomposition with topic and filename.
+3. If intent is SEND_EMAIL, include node-email in task_decomposition."""
             try:
                 import json as _json
-                resp = call_gemini_api(prompt, json_mode=True)
+                resp = call_gemini_api(text, system_instruction=system_prompt, json_mode=True)
                 if resp:
                     parsed = _json.loads(resp.strip())
-                    g_intent = parsed.get("intent","").strip()
-                    g_conf = float(parsed.get("confidence", 0))
-                    if g_intent in INTENT_MAP and g_conf > 0.8 and confidence < 0.9:
-                        intent, confidence = g_intent, g_conf
-            except Exception:
-                pass
+                    g_intent = parsed.get("intent", intent)
+                    g_entities = parsed.get("entities", {})
+                    g_decomp = parsed.get("task_decomposition", [])
+                    
+                    if g_intent in INTENT_MAP and g_entities.get("file_topic"):
+                        intent = g_intent
+                        entities = g_entities
+                        if g_decomp:
+                            decomp = g_decomp
+                        else:
+                            decomp = self.decompose_tasks(normalized, intent, entities)
+                        
+                        semantic = self.semantic_parse(normalized, intent, entities)
+                        context = self.context_resolution(normalized, entities)
+                        pipeline = self.generate_nlp_pipeline(text, intent, entities, lang)
+                        
+                        return {
+                            "original_text": text,
+                            "normalized_text": normalized,
+                            "language": lang,
+                            "intent": intent,
+                            "intent_confidence": parsed.get("intent_confidence", 0.98),
+                            "entities": entities,
+                            "ner_results": ner_results,
+                            "semantic_parse": semantic,
+                            "context_resolution": context,
+                            "task_decomposition": decomp,
+                            "nlp_pipeline_steps": pipeline,
+                        }
+            except Exception as ex:
+                print(f"Gemini zero-shot parse fallback to local engine: {ex}")
 
         entities   = self.extract_entities(normalized, lang, ner_results)
         semantic   = self.semantic_parse(normalized, intent, entities)
