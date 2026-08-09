@@ -385,15 +385,31 @@ class NLPProcessor:
             if ner_results.get("FILE"):  entities["filename"]  = ner_results["FILE"][0]
             if ner_results.get("DATE_TIME"): entities["date_time"] = ner_results["DATE_TIME"][0]
 
-        # File topic extraction — two-step, language-aware
+        # File topic extraction — two-step, multilingual (English, Hindi, Kannada, Hinglish)
         create_match = re.search(
             r"(?:create|generate|write|make|compose)\s+(?:a\s+)?(pdf|document|text file|report|csv|txt)\s+(?:on|about|for|of)\s+(.+)",
             text, re.IGNORECASE
         )
+        
+        # Multilingual regexes (Hindi Devanagari, Hinglish, Kannada)
+        hi_match = re.search(
+            r"(.+?)\s+(?:पर|के बारे में|विषय पर)\s+(?:एक\s+)?(pdf|पीडीएफ|दस्तावेज़|रिपोर्ट|फ़ाइल)\s+(?:बनाएं|बनाओ|लिखें|तैयार करें)",
+            text, re.IGNORECASE
+        ) if not create_match else None
+        
+        kn_match = re.search(
+            r"(.+?)\s+(?:ಬಗ್ಗೆ|ಮೇಲೆ|ವಿಷಯದ)\s+(?:ಒಂದು\_)?(pdf|ಪಿಡಿಎಫ್|ದಾಖಲೆ|ವರದಿ)\s+(?:ರಚಿಸಿ|ಮಾಡಿ|ಬರೆಯಿರಿ)",
+            text, re.IGNORECASE
+        ) if not create_match else None
+        
+        hinglish_match = re.search(
+            r"(.+?)\s+(?:par|pe|ke baare mein)\s+(?:ek\_)?(pdf|document|report|file)\s+(?:banao|banaen|generate karo|write karo)",
+            text, re.IGNORECASE
+        ) if not create_match and not hi_match and not kn_match else None
+
         if create_match:
             file_type = create_match.group(1).lower()
             raw_topic = create_match.group(2).strip()
-            # Trim trailing send/email/recipient boundary but NOT "to" inside topics
             topic = re.sub(
                 r"\s+(?:and\s+)?(?:send|sent|mail|email|post)(?:\s+it)?(?:\s+to\s+\S+.*)?\s*$"
                 r"|\s+(?:and\s+)?(?:send|sent|mail|email|post)\s*$"
@@ -406,7 +422,34 @@ class NLPProcessor:
             entities["create_file"] = True
             if not entities["filename"]:
                 clean = re.sub(r"[^\w\s-]", "", topic).strip().lower()
-                entities["filename"] = re.sub(r"[-\s]+", "_", clean) + ext
+                clean = re.sub(r"[-\s]+", "_", clean)
+                entities["filename"] = (clean if clean else "report") + ext
+        elif hi_match:
+            topic = hi_match.group(1).strip()
+            # Trim leading commas or quotes
+            topic = re.sub(r"^[,\s'\"]+", "", topic).strip()
+            entities["file_topic"] = topic
+            entities["create_file"] = True
+            if not entities["filename"]:
+                clean = re.sub(r"[^\w\s-]", "", topic).strip().lower()
+                clean = re.sub(r"[-\s]+", "_", clean)
+                entities["filename"] = (clean if clean else "hindi_report") + ".pdf"
+        elif kn_match:
+            topic = kn_match.group(1).strip()
+            entities["file_topic"] = topic
+            entities["create_file"] = True
+            if not entities["filename"]:
+                clean = re.sub(r"[^\w\s-]", "", topic).strip().lower()
+                clean = re.sub(r"[-\s]+", "_", clean)
+                entities["filename"] = (clean if clean else "kannada_report") + ".pdf"
+        elif hinglish_match:
+            topic = hinglish_match.group(1).strip()
+            entities["file_topic"] = topic
+            entities["create_file"] = True
+            if not entities["filename"]:
+                clean = re.sub(r"[^\w\s-]", "", topic).strip().lower()
+                clean = re.sub(r"[-\s]+", "_", clean)
+                entities["filename"] = (clean if clean else "report") + ".pdf"
 
         # Recipient — multilingual
         if not entities["recipient"]:
