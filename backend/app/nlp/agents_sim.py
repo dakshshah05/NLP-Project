@@ -130,92 +130,88 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
                 clean_line = clean_text(line.replace("**", "").replace("*", "").replace("`", ""))
                 pdf.multi_cell(0, 6, clean_line)
                 pdf.ln(2)
-    elif "benefit" in topic.lower() and "ai" in topic.lower():
-        intro = ("Artificial Intelligence (AI) has emerged as one of the most powerful and transformative "
-                 "technologies of the 21st century. By enabling machines to learn, reason, and solve complex "
-                 "problems, AI is reshaping how we live, work, and interact. This report outlines the "
-                 "key benefits of AI across sectors.")
+    elif any(k in topic.lower() for k in ["gemini", "llm", "chatgpt", "ai", "model"]):
+        pdf.set_font("helvetica", "B", 13)
+        pdf.set_text_color(24, 37, 73)
+        pdf.cell(0, 8, "1. Executive Summary & Overview", ln=True)
+        pdf.set_font("helvetica", "", 10.5)
+        pdf.set_text_color(30, 41, 59)
+        intro = ("Gemini and modern Large Language Models (LLMs) represent a breakthrough in artificial intelligence. "
+                 "They process natural language directives, code, and multimodal inputs to execute complex real-world workflows "
+                 "and automate document generation across enterprise applications.")
         pdf.multi_cell(0, 6, intro)
         pdf.ln(6)
         
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(24, 37, 73)
-        pdf.cell(0, 8, "1. Automation and Efficiency", ln=True)
+        pdf.cell(0, 8, "2. Key Capabilities & Features", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        sec1 = ("AI systems can automate repetitive, mundane tasks, allowing human workers to focus on "
-                "higher-value creative and strategic activities. This increases operational efficiency, "
-                "minimizes human error, and drives down costs across industries.")
+        sec1 = ("- Natural Language Understanding: Accurately parses commands in Hindi, English, and 40+ languages.\n"
+                "- Intent & Entity Extraction: Identifies target recipients, document topics, and task actions.\n"
+                "- Autonomous Workflow Execution: Connects directly with email services, PDF engines, and search APIs.")
         pdf.multi_cell(0, 6, sec1)
         pdf.ln(6)
         
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(24, 37, 73)
-        pdf.cell(0, 8, "2. Advanced Data Analysis", ln=True)
+        pdf.cell(0, 8, "3. Recommended Usage Guide", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        sec2 = ("Modern AI and machine learning algorithms can process vast amounts of unstructured data "
-                "in real-time, uncovering hidden patterns, correlations, and insights. This enables "
-                "businesses and researchers to make data-driven decisions with unprecedented speed.")
+        sec2 = ("1. Provide clear, direct prompts specifying the target action (e.g. 'Create a PDF and send email').\n"
+                "2. State topic guidelines or recipient details explicitly for seamless multi-agent orchestration.\n"
+                "3. Monitor autonomous agent logs in real time to trace workflow completion step-by-step.")
         pdf.multi_cell(0, 6, sec2)
         pdf.ln(6)
         
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(24, 37, 73)
-        pdf.cell(0, 8, "3. Revolutionizing Healthcare", ln=True)
+        pdf.cell(0, 8, "4. Summary & Best Practices", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        sec3 = ("In medicine, AI assists in early disease detection, drug discovery, and personalized treatment plans. "
-                "Machine learning models analyze medical imaging (like X-rays and MRIs) with high accuracy, saving "
-                "lives and improving patient outcomes globally.")
-        pdf.multi_cell(0, 6, sec3)
-        pdf.ln(6)
-        
-        pdf.set_font("helvetica", "B", 12)
-        pdf.set_text_color(24, 37, 73)
-        pdf.cell(0, 8, "Conclusion", ln=True)
-        pdf.set_font("helvetica", "", 10.5)
-        pdf.set_text_color(30, 41, 59)
-        conclusion = ("The benefits of AI are vast and far-reaching. As the technology continues to evolve, "
-                      "responsible development and ethical guidelines will ensure that AI remains a force for "
-                      "good, driving innovation and improving quality of life globally.")
+        conclusion = ("Integrating AI models like Gemini into automated agent workflows accelerates task execution, "
+                      "reduces manual overhead, and provides consistent structured outputs across various business domain tasks.")
         pdf.multi_cell(0, 6, conclusion)
     else:
-        clean_topic = clean_text(topic)
-        intro = (f"Artificial Intelligence and modern digital tools play a significant role in analyzing "
-                 f"and understanding complex topics such as {clean_topic}. This research brief compiles key "
-                 f"dimensions and structured insights on this topic.")
+        clean_topic = clean_text(topic_display)
+        pdf.set_font("helvetica", "B", 13)
+        pdf.set_text_color(24, 37, 73)
+        pdf.cell(0, 8, f"1. Introduction to {clean_topic}", ln=True)
+        pdf.set_font("helvetica", "", 10.5)
+        pdf.set_text_color(30, 41, 59)
+        intro = (f"This document provides a comprehensive research summary on '{clean_topic}'. "
+                 f"It analyzes essential principles, key domain factors, and practical applications.")
         pdf.multi_cell(0, 6, intro)
         pdf.ln(6)
         
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(24, 37, 73)
-        pdf.cell(0, 8, "Overview & Significance", ln=True)
+        pdf.cell(0, 8, "2. Key Objectives & Analysis", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        sec1 = (f"The topic of {clean_topic} has garnered significant interest due to its impact on technology, "
-                f"business processes, and societal workflows. Understanding its core variables is essential "
-                f"for modern analytics and strategy formulation.")
+        sec1 = (f"Understanding '{clean_topic}' involves evaluating structural workflows, efficiency gains, "
+                f"and strategic implementation steps required for optimal results.")
         pdf.multi_cell(0, 6, sec1)
         pdf.ln(6)
         
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(24, 37, 73)
-        pdf.cell(0, 8, "Key Opportunities", ln=True)
+        pdf.cell(0, 8, "3. Key Takeaways & Recommendations", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        sec2 = (f"Research indicates that focusing on {clean_topic} allows organizations to unlock new capabilities, "
-                f"increase process throughput, and align modern infrastructure with dynamic user expectations.")
+        sec2 = (f"1. Conduct thorough domain evaluations for {clean_topic}.\n"
+                f"2. Implement automated procedures to streamline data handling.\n"
+                f"3. Continuously refine strategies based on real-world execution metrics.")
         pdf.multi_cell(0, 6, sec2)
         pdf.ln(6)
         
         pdf.set_font("helvetica", "B", 12)
         pdf.set_text_color(24, 37, 73)
-        pdf.cell(0, 8, "Summary", ln=True)
+        pdf.cell(0, 8, "4. Summary", ln=True)
         pdf.set_font("helvetica", "", 10.5)
         pdf.set_text_color(30, 41, 59)
-        conclusion = (f"In conclusion, the study of {clean_topic} demonstrates how digital systems can automate "
-                      f"retrieval and processing. Further exploration will reveal deeper patterns and long-term value.")
+        conclusion = (f"In conclusion, effective management of '{clean_topic}' enhances operational speed "
+                      f"and accuracy across automated task pipelines.")
         pdf.multi_cell(0, 6, conclusion)
 
     pdf.output(filepath)
