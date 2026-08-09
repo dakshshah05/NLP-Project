@@ -206,7 +206,7 @@ const AppContent: React.FC = () => {
           />
         );
       case 'nlp-analysis':
-        return <NLPAnalysis selectedCommand={selectedCommand} />;
+        return <NLPAnalysis selectedCommand={selectedCommand} setSelectedCommand={setSelectedCommand} />;
       case 'workflow-builder':
         return (
           <WorkflowBuilder

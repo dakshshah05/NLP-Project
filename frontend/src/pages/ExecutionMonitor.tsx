@@ -26,6 +26,30 @@ export const ExecutionMonitor: React.FC<ExecutionMonitorProps> = ({ activeWorkfl
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>('');
   const logTerminalRef = useRef<HTMLDivElement>(null);
 
+  const [workflowsHistory, setWorkflowsHistory] = useState<Workflow[]>([]);
+
+  // Fetch past workflows history list
+  useEffect(() => {
+    const fetchWorkflowsHistory = async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+        const res = await fetch(`${backendUrl}/api/workflows/list/history`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setWorkflowsHistory(data);
+          if (!selectedWorkflowId && data.length > 0) {
+            setSelectedWorkflowId(data[0].id);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    if (token) fetchWorkflowsHistory();
+  }, [token]);
+
   const fetchStatus = async (wfId: string) => {
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
@@ -127,6 +151,20 @@ export const ExecutionMonitor: React.FC<ExecutionMonitorProps> = ({ activeWorkfl
           </div>
 
           <div className="flex items-center gap-3">
+            {workflowsHistory.length > 0 && (
+              <select
+                value={selectedWorkflowId}
+                onChange={(e) => setSelectedWorkflowId(e.target.value)}
+                className="bg-slate-900 border border-violet-500/30 text-violet-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-violet-500 cursor-pointer"
+              >
+                <option value="" disabled>Select Execution History...</option>
+                {workflowsHistory.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.status})
+                  </option>
+                ))}
+              </select>
+            )}
             {status === 'Running' && (
               <button
                 onClick={stopWorkflow}

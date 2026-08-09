@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GlassCard } from '../components/GlassCard';
 import type { Command } from '../types';
 import { 
@@ -17,11 +17,32 @@ import {
 
 interface NLPAnalysisProps {
   selectedCommand: Command | null;
+  setSelectedCommand?: (cmd: Command) => void;
 }
 
-export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => {
+export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSelectedCommand }) => {
   const [activeStep, setActiveStep] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'pipeline' | 'diagnostics'>('pipeline');
+  const [history, setHistory] = useState<Command[]>([]);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+        const res = await fetch(`${backendUrl}/api/command/history`);
+        if (res.ok) {
+          const data = await res.json();
+          setHistory(data);
+          if (!selectedCommand && data.length > 0 && setSelectedCommand) {
+            setSelectedCommand(data[0]);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchHistory();
+  }, []);
 
   if (!selectedCommand) {
     return (
@@ -162,14 +183,33 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => 
       {/* Target input summary */}
       <GlassCard glow="violet">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <span className="text-[10px] text-violet-500 uppercase font-bold tracking-wider">Analyzed Instruction</span>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mt-1 italic">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <span className="text-[10px] text-violet-500 uppercase font-bold tracking-wider">Analyzed Instruction</span>
+              {history.length > 0 && setSelectedCommand && (
+                <select
+                  value={selectedCommand.id || ''}
+                  onChange={(e) => {
+                    const match = history.find(c => c.id === e.target.value);
+                    if (match) setSelectedCommand(match);
+                  }}
+                  className="bg-slate-900 border border-violet-500/30 text-violet-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-violet-500 cursor-pointer"
+                >
+                  <option value="" disabled>Switch to Past Command...</option>
+                  {history.map(cmd => (
+                    <option key={cmd.id} value={cmd.id}>
+                      {cmd.intent}: {cmd.original_text.slice(0, 45)}...
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white italic truncate">
               "{selectedCommand.original_text}"
             </h3>
           </div>
           {/* Switch tabs */}
-          <div className="flex bg-slate-100 dark:bg-white/5 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 self-start md:self-center">
+          <div className="flex bg-slate-100 dark:bg-white/5 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 self-start md:self-center shrink-0">
             <button
               onClick={() => setActiveTab('pipeline')}
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${

@@ -34,6 +34,28 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
   const [executionStatus, setExecutionStatus] = useState<string>('Pending');
 
+  const [workflowsHistory, setWorkflowsHistory] = useState<Workflow[]>([]);
+
+  // Fetch past workflows history list
+  const fetchWorkflowsHistory = async () => {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${backendUrl}/api/workflows/list/history`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWorkflowsHistory(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (token) fetchWorkflowsHistory();
+  }, [token]);
+
   // Load workflow nodes if a workflow is active
   const fetchWorkflowDetails = async (workflowId: string) => {
     try {
@@ -191,6 +213,23 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {workflowsHistory.length > 0 && (
+                    <select
+                      value={activeWorkflow?.id || ''}
+                      onChange={(e) => {
+                        const match = workflowsHistory.find(w => w.id === e.target.value);
+                        if (match) setActiveWorkflow(match);
+                      }}
+                      className="bg-slate-900 border border-violet-500/30 text-violet-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-violet-500 cursor-pointer"
+                    >
+                      <option value="" disabled>Select Saved Workflow...</option>
+                      {workflowsHistory.map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} ({w.status})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase flex items-center gap-1.5 ${
                     executionStatus === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
                     executionStatus === 'Failed' ? 'bg-red-500/10 text-red-500 border-red-500/20' :

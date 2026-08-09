@@ -226,3 +226,29 @@ def stop_workflow(id: str, user: dict = Depends(get_current_user)):
     
     return {"status": "Stopped"}
 
+
+@router.get("/list/history", response_model=List[WorkflowResponse])
+def get_user_workflows_history(user: dict = Depends(get_current_user)):
+    uid = user["uid"]
+    wfs_ref = db_firestore.collection("workflows").where("userId", "==", uid).get()
+    
+    res = []
+    for doc in wfs_ref:
+        data = doc.to_dict()
+        created_val = data.get("created_at")
+        ts = datetime.fromisoformat(created_val) if isinstance(created_val, str) else datetime.utcnow()
+        res.append(
+            WorkflowResponse(
+                id=doc.id,
+                command_id=data.get("commandId"),
+                name=data.get("name", "Workflow"),
+                status=data.get("status", "Pending"),
+                success_rate=data.get("success_rate", 0.0),
+                created_at=ts,
+                nodes=[]
+            )
+        )
+    
+    res.sort(key=lambda x: x.created_at, reverse=True)
+    return res[:30]
+
