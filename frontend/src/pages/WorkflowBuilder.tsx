@@ -44,8 +44,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
+        const data: Workflow[] = await res.json();
         setWorkflowsHistory(data);
+        if (!activeWorkflow && data.length > 0) {
+          setActiveWorkflow(data[0]);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -167,33 +170,53 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         <GlassCard className="text-center py-16">
           <GitFork className="w-12 h-12 text-violet-400 mx-auto mb-3 animate-bounce" />
           <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">
-            {selectedCommand ? 'Workflow Blueprint Ready' : 'No Active Directive'}
+            {selectedCommand ? 'Workflow Blueprint Ready' : 'No Active Directive Selected'}
           </h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto mt-2 mb-6">
             {selectedCommand 
               ? 'AURA has decomposed this command into a multi-step execution. Compile the nodes to generate the workflow.'
-              : 'Execute a natural language command in the Command Center first to design a workflow.'}
+              : 'Execute a natural language command in the Command Center first or select a past saved workflow below.'}
           </p>
 
-          {selectedCommand && (
-            <button
-              onClick={handleGenerateWorkflow}
-              disabled={generating}
-              className="px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs shadow-lg shadow-violet-500/20 transition-all flex items-center gap-2 mx-auto disabled:opacity-50"
-            >
-              {generating ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Generating DAG...
-                </>
-              ) : (
-                <>
-                  <Settings className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
-                  Generate Agent Workflow
-                </>
-              )}
-            </button>
-          )}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            {selectedCommand && (
+              <button
+                onClick={handleGenerateWorkflow}
+                disabled={generating}
+                className="px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs shadow-lg shadow-violet-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {generating ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Generating DAG...
+                  </>
+                ) : (
+                  <>
+                    <Settings className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
+                    Generate Agent Workflow
+                  </>
+                )}
+              </button>
+            )}
+
+            {workflowsHistory.length > 0 && (
+              <select
+                value={(activeWorkflow as any)?.id || ''}
+                onChange={(e) => {
+                  const match = (workflowsHistory as Workflow[]).find((w: Workflow) => w.id === e.target.value);
+                  if (match) setActiveWorkflow(match);
+                }}
+                className="bg-slate-900 border border-violet-500/30 text-violet-300 text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-violet-500 cursor-pointer shadow-lg"
+              >
+                <option value="" disabled>Select Saved Workflow...</option>
+                {(workflowsHistory as Workflow[]).map((w: Workflow) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.status})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </GlassCard>
       ) : (
         // Mode 2: Workflow is generated, display nodes, visualization, & run controls
@@ -217,13 +240,13 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                     <select
                       value={activeWorkflow?.id || ''}
                       onChange={(e) => {
-                        const match = workflowsHistory.find(w => w.id === e.target.value);
+                        const match = (workflowsHistory as Workflow[]).find((w: Workflow) => w.id === e.target.value);
                         if (match) setActiveWorkflow(match);
                       }}
                       className="bg-slate-900 border border-violet-500/30 text-violet-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-violet-500 cursor-pointer"
                     >
                       <option value="" disabled>Select Saved Workflow...</option>
-                      {workflowsHistory.map(w => (
+                      {(workflowsHistory as Workflow[]).map((w: Workflow) => (
                         <option key={w.id} value={w.id}>
                           {w.name} ({w.status})
                         </option>

@@ -29,9 +29,13 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
     const fetchHistory = async () => {
       try {
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
-        const res = await fetch(`${backendUrl}/api/command/history`);
+        const headers: Record<string, string> = {};
+        const token = localStorage.getItem('aura_token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`${backendUrl}/api/command/history`, { headers });
         if (res.ok) {
-          const data = await res.json();
+          const data: Command[] = await res.json();
           setHistory(data);
           if (!selectedCommand && data.length > 0 && setSelectedCommand) {
             setSelectedCommand(data[0]);
@@ -48,10 +52,28 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
     return (
       <GlassCard className="text-center py-16">
         <Sparkles className="w-12 h-12 text-violet-400 mx-auto animate-pulse mb-3" />
-        <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">No command selected for analysis</h3>
-        <p className="text-xs text-slate-400 max-w-sm mx-auto mt-2">
-          Head over to the AI Command Center, select or run a command, and then review the full structural breakdown here.
+        <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">No Command Selected for Analysis</h3>
+        <p className="text-xs text-slate-400 max-w-sm mx-auto mt-2 mb-6">
+          Head over to the AI Command Center to submit a directive, or select a previously run command from history below:
         </p>
+
+        {history.length > 0 && setSelectedCommand && (
+          <select
+            value=""
+            onChange={(e) => {
+              const match = history.find(c => c.id === e.target.value);
+              if (match) setSelectedCommand(match);
+            }}
+            className="bg-slate-900 border border-violet-500/30 text-violet-300 text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-violet-500 cursor-pointer shadow-lg mx-auto"
+          >
+            <option value="" disabled>Select Previous Command from History...</option>
+            {history.map(cmd => (
+              <option key={cmd.id} value={cmd.id}>
+                {cmd.intent}: {cmd.original_text.slice(0, 50)}...
+              </option>
+            ))}
+          </select>
+        )}
       </GlassCard>
     );
   }
