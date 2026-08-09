@@ -139,9 +139,9 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => 
       }
     ];
   };
-
   const pipelineSteps = getPipelineSteps(selectedCommand);
-  const currentStepData = pipelineSteps[activeStep - 1];
+  const totalSteps = pipelineSteps.length;
+  const currentStepData = pipelineSteps[Math.min(activeStep - 1, totalSteps - 1)] || pipelineSteps[0];
 
   const entities = selectedCommand.entities;
   const semantic = selectedCommand.semantic_parse;
@@ -200,7 +200,7 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => 
           <div className="lg:col-span-4 space-y-3">
             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider px-2">Pipeline Stepper</span>
             <div className="space-y-2">
-              {pipelineSteps.map((step) => {
+              {pipelineSteps.map((step: any) => {
                 const isActive = step.step === activeStep;
                 const isCompleted = step.step < activeStep;
                 return (
@@ -251,7 +251,7 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => 
               <div className="pb-4 border-b border-slate-200/50 dark:border-white/5">
                 <div className="flex items-center justify-between">
                   <span className="text-[9px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                    Pipeline Step {currentStepData.step} of 7
+                    Pipeline Step {currentStepData.step} of {totalSteps}
                   </span>
                   <div className="flex items-center gap-1.5 text-xs text-slate-400">
                     <Eye className="w-3.5 h-3.5" />
@@ -445,7 +445,7 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => 
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                      {Object.keys(currentStepData.outputs.semantic_relations).map((key) => (
+                      {currentStepData.outputs.semantic_relations && Object.keys(currentStepData.outputs.semantic_relations).map((key) => (
                         <div key={key} className="p-2.5 rounded-xl border border-slate-200/30 bg-slate-100/10 dark:bg-white/5">
                           <span className="text-[9px] text-slate-400 font-bold block uppercase">{key}</span>
                           <span className="font-semibold text-slate-700 dark:text-slate-200 mt-1 block truncate">
@@ -453,6 +453,22 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => 
                           </span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* GENERIC STEP RENDERER (FOR 13-STEP BACKEND PIPELINES) */}
+                {currentStepData.step > 7 && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 font-mono text-xs text-[#00ffcc] overflow-x-auto space-y-2">
+                      <span className="text-slate-500 text-[10px] select-none block">{"// INPUT DATA"}</span>
+                      <pre>{JSON.stringify(currentStepData.inputs, null, 2)}</pre>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-slate-100/10 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 space-y-2">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Output Details</span>
+                      <pre className="font-mono text-xs text-slate-700 dark:text-slate-200 overflow-x-auto">
+                        {JSON.stringify(currentStepData.outputs, null, 2)}
+                      </pre>
                     </div>
                   </div>
                 )}
@@ -468,19 +484,19 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand }) => 
                   Previous
                 </button>
                 <div className="flex items-center gap-1.5">
-                  {[1, 2, 3, 4, 5, 6, 7].map((num) => (
+                  {pipelineSteps.map((s: any) => (
                     <button
-                      key={num}
-                      onClick={() => setActiveStep(num)}
+                      key={s.step}
+                      onClick={() => setActiveStep(s.step)}
                       className={`w-2 h-2 rounded-full transition-all ${
-                        num === activeStep ? 'bg-violet-600 w-4' : 'bg-slate-300 dark:bg-white/10'
+                        s.step === activeStep ? 'bg-violet-600 w-4' : 'bg-slate-300 dark:bg-white/10'
                       }`}
                     />
                   ))}
                 </div>
                 <button
-                  onClick={() => setActiveStep(prev => Math.min(prev + 1, 7))}
-                  disabled={activeStep === 7}
+                  onClick={() => setActiveStep(prev => Math.min(prev + 1, totalSteps))}
+                  disabled={activeStep === totalSteps}
                   className="px-4 py-2 text-xs font-bold rounded-xl bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-30 disabled:pointer-events-none transition-all"
                 >
                   Next
