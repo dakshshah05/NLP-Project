@@ -571,7 +571,7 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
           </div>
         </div>
       ) : (
-        /* Original Diagnostics summaries */
+        /* Diagnostics summaries */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left pane: Intent & Entities */}
           <div className="lg:col-span-6 space-y-6">
@@ -584,12 +584,12 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
               <div className="flex items-center justify-between border border-slate-200/50 dark:border-white/5 p-4 rounded-2xl bg-slate-100/10 dark:bg-white/5">
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-bold">Classified Label</span>
-                  <p className="font-mono text-sm font-bold text-violet-500 mt-0.5">{selectedCommand.intent}</p>
+                  <p className="font-mono text-sm font-bold text-violet-500 mt-0.5">{selectedCommand.intent || 'UNKNOWN'}</p>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 uppercase font-bold">Confidence Score</span>
                   <p className="text-md font-extrabold text-slate-700 dark:text-slate-200 mt-0.5">
-                    {Math.round(selectedCommand.intent_confidence * 100)}%
+                    {Math.round((selectedCommand.intent_confidence || 0.95) * 100)}%
                   </p>
                 </div>
               </div>
@@ -598,7 +598,7 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
               <div className="w-full bg-slate-200 dark:bg-white/5 h-2 rounded-full mt-4 overflow-hidden">
                 <div 
                   className="bg-violet-600 h-full rounded-full transition-all duration-500" 
-                  style={{ width: `${selectedCommand.intent_confidence * 100}%` }}
+                  style={{ width: `${(selectedCommand.intent_confidence || 0.95) * 100}%` }}
                 />
               </div>
             </GlassCard>
@@ -611,29 +611,32 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
               </h4>
               
               <div className="space-y-3">
-                {Object.keys(entities).map((key) => {
-                  if (key === 'keywords') return null;
-                  const val = entities[key];
-                  
-                  // Color badges matching type
-                  let colorClass = 'bg-slate-200/50 text-slate-600 dark:bg-white/5 dark:text-slate-300';
-                  if (val) {
-                    if (key === 'recipient') colorClass = 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
-                    else if (key === 'filename') colorClass = 'bg-violet-500/10 text-violet-500 border border-violet-500/20';
-                    else if (key === 'url') colorClass = 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
-                    else if (key === 'date_time') colorClass = 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
-                    else if (key === 'subject') colorClass = 'bg-pink-500/10 text-pink-500 border border-pink-500/20';
-                  }
+                {entities && Object.keys(entities).length > 0 ? (
+                  Object.keys(entities).map((key) => {
+                    if (key === 'keywords') return null;
+                    const val = entities[key];
+                    
+                    let colorClass = 'bg-slate-200/50 text-slate-600 dark:bg-white/5 dark:text-slate-300';
+                    if (val) {
+                      if (key === 'recipient') colorClass = 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
+                      else if (key === 'filename') colorClass = 'bg-violet-500/10 text-violet-500 border border-violet-500/20';
+                      else if (key === 'url') colorClass = 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
+                      else if (key === 'date_time') colorClass = 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
+                      else if (key === 'subject') colorClass = 'bg-pink-500/10 text-pink-500 border border-pink-500/20';
+                    }
 
-                  return (
-                    <div key={key} className="flex items-center justify-between p-2 rounded-xl bg-slate-100/10 dark:bg-white/5 border border-slate-200/20 text-xs">
-                      <span className="font-semibold text-slate-400 capitalize">{key.replace('_', ' ')}</span>
-                      <span className={`px-2 py-0.5 rounded font-medium ${colorClass}`}>
-                        {val ? String(val) : 'None'}
-                      </span>
-                    </div>
-                  );
-                })}
+                    return (
+                      <div key={key} className="flex items-center justify-between p-2 rounded-xl bg-slate-100/10 dark:bg-white/5 border border-slate-200/20 text-xs">
+                        <span className="font-semibold text-slate-400 capitalize">{key.replace('_', ' ')}</span>
+                        <span className={`px-2 py-0.5 rounded font-medium ${colorClass}`}>
+                          {val ? String(val) : 'None'}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-slate-400 py-2">No entities extracted.</p>
+                )}
               </div>
             </GlassCard>
           </div>
@@ -650,21 +653,21 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Logical Form Structure</span>
                   <pre className="mt-1 p-3 rounded-xl bg-slate-900 text-[#00ffcc] font-mono text-[11px] overflow-x-auto">
-                    {semantic.logical_form}
+                    {semantic?.logical_form || `INTENT(${selectedCommand.intent || 'TASK'})`}
                   </pre>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="p-2.5 rounded-xl border border-slate-200/30">
                     <span className="text-[9px] text-slate-400 font-bold block uppercase">Actor</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">{semantic.semantic_relations.actor}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{semantic?.semantic_relations?.actor || 'User Agent'}</span>
                   </div>
                   <div className="p-2.5 rounded-xl border border-slate-200/30">
                     <span className="text-[9px] text-slate-400 font-bold block uppercase">Action</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">{semantic.semantic_relations.action}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{semantic?.semantic_relations?.action || selectedCommand.intent}</span>
                   </div>
                   <div className="p-2.5 rounded-xl border border-slate-200/30">
                     <span className="text-[9px] text-slate-400 font-bold block uppercase">Object</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block">{semantic.semantic_relations.object}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block">{semantic?.semantic_relations?.object || 'Target Context'}</span>
                   </div>
                   <div className="p-2.5 rounded-xl border border-slate-200/30">
                     <span className="text-[9px] text-slate-400 font-bold block uppercase">Dependency Tree</span>
@@ -687,7 +690,7 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
                 <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100 dark:border-white/5">
                   <span className="text-slate-400 font-semibold">Active Agent Session</span>
                   <span className="font-mono bg-indigo-500/10 text-indigo-500 px-2 py-0.5 rounded">
-                    {context.active_session}
+                    {context?.active_session || 'sess_active'}
                   </span>
                 </div>
                 <div>
@@ -695,18 +698,18 @@ export const NLPAnalysis: React.FC<NLPAnalysisProps> = ({ selectedCommand, setSe
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="p-2 bg-slate-100/50 dark:bg-white/5 rounded-xl">
                       <span className="text-slate-400 text-[10px] block">"it" resolved to:</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">{context.resolved_references.it}</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">{context?.resolved_references?.it || 'None'}</span>
                     </div>
                     <div className="p-2 bg-slate-100/50 dark:bg-white/5 rounded-xl">
                       <span className="text-slate-400 text-[10px] block">"them" resolved to:</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block">{context.resolved_references.them}</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block">{context?.resolved_references?.them || 'None'}</span>
                     </div>
                   </div>
                 </div>
                 <div className="flex justify-between items-center text-xs pt-1">
                   <span className="text-slate-400 font-semibold">Language Preference</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    {context.user_preferences.language_preference}
+                    {context?.user_preferences?.language_preference || selectedCommand.language || 'English'}
                   </span>
                 </div>
               </div>
