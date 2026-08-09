@@ -306,15 +306,20 @@ class AgentSimulator:
                 
                 try:
                     custom_content = None
-                    if os.getenv("GEMINI_API_KEY"):
-                        self._add_log_firestore(exec_ref, agent_name, "INFO", f"Calling Gemini API to generate custom report content for '{topic}'...")
+                    if os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"):
+                        self._add_log_firestore(exec_ref, agent_name, "INFO", f"Calling AI LLM API to generate custom report content for '{topic}'...")
                         prompt = (f"Write a detailed, comprehensive, and highly professional report on the topic: '{topic}'. "
                                   f"Use structured headings (like # and ## and ###) and bullet points. Make it substantial and informative.")
-                        custom_content = call_gemini_api(prompt)
+                        if os.getenv("GROQ_API_KEY"):
+                            from backend.app.nlp.groq_api import call_groq_api
+                            custom_content = call_groq_api(prompt)
+                        if not custom_content and os.getenv("GEMINI_API_KEY"):
+                            custom_content = call_gemini_api(prompt)
+                            
                         if custom_content:
-                            self._add_log_firestore(exec_ref, agent_name, "INFO", "Gemini content generated successfully.")
+                            self._add_log_firestore(exec_ref, agent_name, "INFO", "AI content generated successfully.")
                         else:
-                            self._add_log_firestore(exec_ref, agent_name, "WARNING", "Gemini returned empty content. Falling back to template.")
+                            self._add_log_firestore(exec_ref, agent_name, "WARNING", "LLM returned empty content. Falling back to template.")
                     
                     if filename.lower().endswith(".pdf"):
                         create_pdf_report(resolved_path, topic, custom_content)
@@ -341,13 +346,19 @@ Prompt processed: {wf_doc.to_dict().get('name', 'N/A')}
 Best regards,
 AURA AI Autonomous Agent Engine"""
                 
-                if os.getenv("GEMINI_API_KEY"):
-                    self._add_log_firestore(exec_ref, agent_name, "INFO", "Calling Gemini API to draft a dynamic email body...")
+                if os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"):
+                    self._add_log_firestore(exec_ref, agent_name, "INFO", "Calling AI LLM API to draft a dynamic email body...")
                     try:
                         email_prompt = (f"Draft a warm, professional, and concise email body (2-3 sentences) accompanying "
                                         f"a newly created report on the subject '{subject}'. The recipient is '{recipient}'. "
                                         f"Write only the email body without placeholders, subject line, or sign-offs (like 'Best regards').")
-                        ai_body = call_gemini_api(email_prompt)
+                        ai_body = None
+                        if os.getenv("GROQ_API_KEY"):
+                            from backend.app.nlp.groq_api import call_groq_api
+                            ai_body = call_groq_api(email_prompt)
+                        if not ai_body and os.getenv("GEMINI_API_KEY"):
+                            ai_body = call_gemini_api(email_prompt)
+
                         if ai_body:
                             body_content = f"Hello,\n\n{ai_body.strip()}\n\nBest regards,\nAURA AI Autonomous Agent Engine"
                             self._add_log_firestore(exec_ref, agent_name, "INFO", "Dynamic email body drafted successfully.")
