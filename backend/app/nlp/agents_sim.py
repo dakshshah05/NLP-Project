@@ -47,6 +47,12 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
         create_text_report(filepath, topic, custom_content)
         return
 
+    def clean_text(text: str) -> str:
+        if not text:
+            return ""
+        # Encode to latin-1, replacing unsupported Unicode (like Devanagari/Hindi) with ascii equivalents or spaces
+        return text.encode('latin-1', 'replace').decode('latin-1')
+
     pdf = AURAPDF()
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -57,7 +63,7 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
     pdf.set_y(40)
     pdf.set_font("helvetica", "B", 18)
     pdf.set_text_color(24, 37, 73)
-    pdf.cell(0, 10, f"Research Brief: {topic.title()}", ln=True, align="L")
+    pdf.cell(0, 10, clean_text(f"Research Brief: {topic.title()}"), ln=True, align="L")
     
     # Underline
     pdf.set_draw_color(139, 92, 246)
@@ -89,21 +95,21 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
                 pdf.ln(2)
                 pdf.set_font("helvetica", "B", 11)
                 pdf.set_text_color(24, 37, 73)
-                pdf.cell(0, 7, line.replace("###", "").strip(), ln=True)
+                pdf.cell(0, 7, clean_text(line.replace("###", "").strip()), ln=True)
             elif line.startswith("##"):
                 pdf.ln(3)
                 pdf.set_font("helvetica", "B", 13)
                 pdf.set_text_color(24, 37, 73)
-                pdf.cell(0, 8, line.replace("##", "").strip(), ln=True)
+                pdf.cell(0, 8, clean_text(line.replace("##", "").strip()), ln=True)
             elif line.startswith("#"):
                 pdf.ln(4)
                 pdf.set_font("helvetica", "B", 15)
                 pdf.set_text_color(24, 37, 73)
-                pdf.cell(0, 9, line.replace("#", "").strip(), ln=True)
+                pdf.cell(0, 9, clean_text(line.replace("#", "").strip()), ln=True)
             else:
                 pdf.set_font("helvetica", "", 10.5)
                 pdf.set_text_color(30, 41, 59)
-                clean_line = line.replace("**", "").replace("*", "").replace("`", "")
+                clean_line = clean_text(line.replace("**", "").replace("*", "").replace("`", ""))
                 pdf.multi_cell(0, 6, clean_line)
                 pdf.ln(2)
     elif "benefit" in topic.lower() and "ai" in topic.lower():
@@ -309,6 +315,7 @@ class AgentSimulator:
                     if os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"):
                         self._add_log_firestore(exec_ref, agent_name, "INFO", f"Calling AI LLM API to generate custom report content for '{topic}'...")
                         prompt = (f"Write a detailed, comprehensive, and highly professional report on the topic: '{topic}'. "
+                                  f"IMPORTANT: Write the content in English so it can be exported cleanly to standard PDF fonts. "
                                   f"Use structured headings (like # and ## and ###) and bullet points. Make it substantial and informative.")
                         if os.getenv("GROQ_API_KEY"):
                             from backend.app.nlp.groq_api import call_groq_api
