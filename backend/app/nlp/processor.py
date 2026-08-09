@@ -627,98 +627,122 @@ class NLPProcessor:
     def process_command(self, text: str) -> Dict[str, Any]:
         """
         Full 13-step NLP pipeline.
-        Gemini used ONLY for optional intent confirmation (never for entity extraction).
+        Primary: Groq Cloud API (Llama-3.3-70B) for zero-shot multilingual understanding.
+        Fallback: Local NLTK/TF-IDF engine.
         """
+        # Always run local NLP steps (for the 13-step display in the UI)
         lang = self.detect_language(text)
         normalized = self.normalize_text(text)
         _, tokens = self.tokenize(normalized)
         pos_tags = self.pos_tag(tokens)
         ner_results = self.recognize_entities_ner(normalized, tokens, pos_tags)
-        intent, confidence = self.detect_intent(normalized, lang)
+        intent_local, confidence = self.detect_intent(normalized, lang)
 
-        # Zero-shot LLM parsing using Groq (Llama-3.3-70B) or Gemini API
-        if os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"):
-            system_prompt = """You are an NLP parser for AURA AI. Parse the input command into structured JSON.
+        # ── ZERO-SHOT LLM PARSER (Groq preferred, Gemini fallback) ──────────
+        system_prompt = """You are an NLP parser for an AI task automation platform called AURA AI.
+The user sends commands in English, Hindi (Devanagari), Kannada, Hinglish or any other language.
+You must parse the command and return ONLY a valid JSON object - no markdown, no backticks, no explanation.
 
-Return ONLY this JSON schema (no markdown, no backticks):
+JSON schema to return:
 {
-  "intent": "SEND_EMAIL" | "FIND_DOCUMENT" | "AUTOMATE_BROWSER" | "PLAN_SCHEDULE" | "MANAGE_FILES",
+  "intent": one of ["SEND_EMAIL", "FIND_DOCUMENT", "CREATE_DOCUMENT", "AUTOMATE_BROWSER", "PLAN_SCHEDULE", "MANAGE_FILES"],
   "intent_confidence": 0.98,
+  "language": "English" or "Hindi" or "Kannada" or "Hinglish" etc,
   "entities": {
-    "recipient": "email address or person name (or null)",
-    "subject": "email subject (or null)",
-    "filename": "snake_case filename with extension like .pdf or .txt (or null)",
-    "url": "url (or null)",
-    "date_time": "mentioned date or time (or null)",
-    "file_topic": "exact verbatim topic of document to create/search (or null)",
-    "create_file": true if command asks to create/generate a file else false,
-    "keywords": ["key", "terms"]
+    "recipient": "email address (e.g. user@example.com) or person name, or null",
+    "subject": "email subject line, or null",
+    "filename": "snake_case filename with .pdf/.txt/.csv extension, or null",
+    "url": "url if mentioned, or null",
+    "date_time": "date or time if mentioned, or null",
+    "file_topic": "the VERBATIM, COMPLETE topic for the document to create. NEVER truncate this. If user says 'Gemini का इस्तेमाल कैसे करें' that is the full topic. null if no document.",
+    "create_file": true if creating/generating a PDF, document, report, file, else false,
+    "keywords": ["important", "keywords"]
   },
   "task_decomposition": [
-    {"id": "node-nlp", "label": "NLP Intent & Entity Parse", "type": "planner", "inputs": {"text": "raw command"}, "outputs": {}},
+    {"id": "node-nlp", "label": "NLP Intent & Entity Parse", "type": "planner", "inputs": {"text": "<original command>"}, "outputs": {"intent": "<intent>", "entities": {}}},
     {"id": "node-create-doc", "label": "Create Document: <filename>", "type": "document", "inputs": {"filename": "<filename>", "topic": "<file_topic>", "action": "create"}, "outputs": {"filepath": "/workspace/<filename>"}},
-    {"id": "node-email", "label": "Compose Email to <recipient>", "type": "email", "inputs": {"to": "<recipient>", "subject": "<subject>", "attachment": "/workspace/<filename>"}, "outputs": {"status": "sent"}}
+    {"id": "node-email", "label": "Compose Email to <recipient>", "type": "email", "inputs": {"to": "<recipient>", "subject": "<subject>", "attachment": "/workspace/<filename> or null"}, "outputs": {"status": "sent"}},
+    {"id": "node-complete", "label": "Verify Execution and Store Memory", "type": "memory", "inputs": {"status": "Completed"}, "outputs": {"saved_state": "Workflow state persisted"}}
   ]
 }
 
-Rules:
-1. Extract the verbatim topic in file_topic (e.g. if text is in Hindi/Kannada/English, extract the topic in full without truncation).
-2. If create_file is true, include node-create-doc in task_decomposition with topic and filename.
-3. If intent is SEND_EMAIL, include node-email in task_decomposition."""
-            try:
-                import json as _json
-                resp = ""
-                if os.getenv("GROQ_API_KEY"):
-                    from backend.app.nlp.groq_api import call_groq_api
-                    resp = call_groq_api(text, system_instruction=system_prompt, json_mode=True)
-                if not resp and os.getenv("GEMINI_API_KEY"):
-                    from backend.app.nlp.gemini import call_gemini_api
-                    resp = call_gemini_api(text, system_instruction=system_prompt, json_mode=True)
-                if resp:
-                    parsed = _json.loads(resp.strip())
-                    g_intent = parsed.get("intent", intent)
-                    g_entities = parsed.get("entities", {})
-                    g_decomp = parsed.get("task_decomposition", [])
-                    
-                    if g_intent in INTENT_MAP and g_entities.get("file_topic"):
-                        intent = g_intent
-                        entities = g_entities
-                        if g_decomp:
-                            decomp = g_decomp
-                        else:
-                            decomp = self.decompose_tasks(normalized, intent, entities)
-                        
-                        semantic = self.semantic_parse(normalized, intent, entities)
-                        context = self.context_resolution(normalized, entities)
-                        pipeline = self.generate_nlp_pipeline(text, intent, entities, lang)
-                        
-                        return {
-                            "original_text": text,
-                            "normalized_text": normalized,
-                            "language": lang,
-                            "intent": intent,
-                            "intent_confidence": parsed.get("intent_confidence", 0.98),
-                            "entities": entities,
-                            "ner_results": ner_results,
-                            "semantic_parse": semantic,
-                            "context_resolution": context,
-                            "task_decomposition": decomp,
-                            "nlp_pipeline_steps": pipeline,
-                        }
-            except Exception as ex:
-                print(f"Gemini zero-shot parse fallback to local engine: {ex}")
+RULES (follow strictly):
+1. file_topic must be the EXACT, FULL topic text from the command. Do not shorten it.
+2. filename must be derived from file_topic (snake_case + .pdf).
+3. Include node-create-doc ONLY if create_file is true.
+4. Include node-email if the command asks to send or email to someone.
+5. Always include node-nlp as the first node and node-complete as the last node.
+6. For intent SEND_EMAIL or CREATE_DOCUMENT with email, both node-create-doc and node-email must appear.
+7. Return ONLY valid JSON. No text before or after."""
 
-        entities   = self.extract_entities(normalized, lang, ner_results)
-        semantic   = self.semantic_parse(normalized, intent, entities)
-        context    = self.context_resolution(normalized, entities)
-        decomp     = self.decompose_tasks(normalized, intent, entities)
-        pipeline   = self.generate_nlp_pipeline(text, intent, entities, lang)
+        llm_result = None
+        import json as _json
+
+        if os.getenv("GROQ_API_KEY"):
+            try:
+                from backend.app.nlp.groq_api import call_groq_api
+                resp = call_groq_api(text, system_instruction=system_prompt, json_mode=True)
+                if resp:
+                    llm_result = _json.loads(resp.strip())
+            except Exception as ex:
+                print(f"[GROQ] Parse failed, falling to local: {ex}")
+
+        if llm_result is None and os.getenv("GEMINI_API_KEY"):
+            try:
+                from backend.app.nlp.gemini import call_gemini_api
+                resp = call_gemini_api(text, system_instruction=system_prompt, json_mode=True)
+                if resp:
+                    llm_result = _json.loads(resp.strip())
+            except Exception as ex:
+                print(f"[GEMINI] Parse failed, falling to local: {ex}")
+
+        # ── Use LLM result if valid ───────────────────────────────────────────
+        if llm_result and llm_result.get("intent") in INTENT_MAP:
+            intent = llm_result["intent"]
+            confidence = float(llm_result.get("intent_confidence", 0.98))
+            entities = llm_result.get("entities", {})
+            decomp = llm_result.get("task_decomposition", [])
+            lang = llm_result.get("language", lang)
+
+            # Ensure entities has all required fields
+            for k in ["recipient", "subject", "filename", "url", "date_time", "file_topic", "create_file", "keywords"]:
+                if k not in entities:
+                    entities[k] = [] if k == "keywords" else (False if k == "create_file" else None)
+
+            # If decomp is empty or missing, build it from entities
+            if not decomp:
+                decomp = self.decompose_tasks(normalized, intent, entities)
+
+            semantic = self.semantic_parse(normalized, intent, entities)
+            context = self.context_resolution(normalized, entities)
+            pipeline = self.generate_nlp_pipeline(text, intent, entities, lang)
+
+            return {
+                "original_text":      text,
+                "normalized_text":    normalized,
+                "language":           lang,
+                "intent":             intent,
+                "intent_confidence":  confidence,
+                "entities":           entities,
+                "ner_results":        ner_results,
+                "semantic_parse":     semantic,
+                "context_resolution": context,
+                "task_decomposition": decomp,
+                "nlp_pipeline_steps": pipeline,
+            }
+
+        # ── Local Fallback (no API key or API failed) ─────────────────────────
+        entities = self.extract_entities(normalized, lang, ner_results)
+        semantic = self.semantic_parse(normalized, intent_local, entities)
+        context  = self.context_resolution(normalized, entities)
+        decomp   = self.decompose_tasks(normalized, intent_local, entities)
+        pipeline = self.generate_nlp_pipeline(text, intent_local, entities, lang)
 
         return {
             "original_text":      text,
             "normalized_text":    normalized,
             "language":           lang,
-            "intent":             intent,
+            "intent":             intent_local,
             "intent_confidence":  confidence,
             "entities":           entities,
             "ner_results":        ner_results,
