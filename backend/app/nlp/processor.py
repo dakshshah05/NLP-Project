@@ -392,11 +392,23 @@ class NLPProcessor:
         )
         
         # Multilingual regexes (Hindi Devanagari, Hinglish, Kannada)
-        # Matches: "Gemini का इस्तेमाल कैसे करें, इस पर एक PDF बनाएं..." -> group(1) = Gemini का इस्तेमाल कैसे करें
+        # Matches: "Gemini का इस्तेमाल कैसे करें, इस पर एक PDF बनाएँ..." -> topic = Gemini का इस्तेमाल कैसे करें
         hi_match = re.search(
-            r"(.+?)(?:,\s*|\s+)(?:इस\s+)?पर\s+(?:एक\s+)?(pdf|पीडीएफ|दस्तावेज़|रिपोर्ट|फ़ाइल)\s+(?:बनाएं|बनाओ|लिखें|तैयार करें)",
+            r"(.+?)(?:,\s*|\s+)(?:इस\s+)?पर\s+(?:एक\s+)?(pdf|पीडीएफ|दस्तावेज़|रिपोर्ट|फ़ाइल)\s+(?:बनाएं|बनाएँ|बनाओ|लिखें|लिखें|तैयार करें)",
             text, re.IGNORECASE
         ) if not create_match else None
+        
+        # Fallback Hindi regex for prompts like "पीडीएफ बनाएं: topic" or "topic की पीडीएफ बनाएं"
+        if not create_match and not hi_match:
+            hi_match_alt = re.search(
+                r"(?:एक\s+)?(pdf|पीडीएफ|दस्तावेज़|रिपोर्ट|फ़ाइल)\s+(?:बनाएं|बनाएँ|बनाओ|लिखें|तैयार करें)\s+(?:विषय\s+|पर\s+)?(.+)",
+                text, re.IGNORECASE
+            )
+            if hi_match_alt:
+                raw_hi_topic = hi_match_alt.group(2).strip()
+                trimmed_hi_topic = re.sub(r"\s+(?:और\s+)?(?:उसे\s+)?[\w\.\-]+@[\w\.\-]+\.\w+.*$", "", raw_hi_topic).strip()
+                hi_match = re.search(r"^$", "") # dummy
+                hi_topic_extracted = trimmed_hi_topic
         
         kn_match = re.search(
             r"(.+?)\s+(?:ಬಗ್ಗೆ|ಮೇಲೆ|ವಿಷಯದ)\s+(?:ಒಂದು\_)?(pdf|ಪಿಡಿಎಫ್|ದಾಖಲೆ|ವರದಿ)\s+(?:ರಚಿಸಿ|ಮಾಡಿ|ಬರೆಯಿರಿ)",
@@ -426,7 +438,7 @@ class NLPProcessor:
                 clean = re.sub(r"[-\s]+", "_", clean)
                 entities["filename"] = (clean if clean else "report") + ext
         elif hi_match:
-            topic = hi_match.group(1).strip()
+            topic = hi_topic_extracted if 'hi_topic_extracted' in locals() else hi_match.group(1).strip()
             # Trim leading commas or quotes
             topic = re.sub(r"^[,\s'\"]+", "", topic).strip()
             entities["file_topic"] = topic
