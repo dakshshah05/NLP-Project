@@ -47,10 +47,28 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
         create_text_report(filepath, topic, custom_content)
         return
 
+    # If the topic contains non-ASCII characters (e.g. Hindi/Kannada), translate it to English for clean display
+    topic_display = topic
+    if any(ord(char) > 127 for char in topic):
+        if os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"):
+            try:
+                trans_prompt = f"Translate this topic or title to English concise title (3-5 words maximum, title case): '{topic}'. Return ONLY the translated English title and nothing else."
+                if os.getenv("GROQ_API_KEY"):
+                    from backend.app.nlp.groq_api import call_groq_api
+                    tr = call_groq_api(trans_prompt)
+                    if tr: topic_display = tr.strip().strip('"')
+                if topic_display == topic and os.getenv("GEMINI_API_KEY"):
+                    tr = call_gemini_api(trans_prompt)
+                    if tr: topic_display = tr.strip().strip('"')
+            except Exception:
+                topic_display = "Custom Topic Overview"
+        else:
+            topic_display = "Custom Topic Overview"
+
     def clean_text(text: str) -> str:
         if not text:
             return ""
-        # Encode to latin-1, replacing unsupported Unicode (like Devanagari/Hindi) with ascii equivalents or spaces
+        # Encode to latin-1, replacing unsupported Unicode with ascii equivalents or spaces
         return text.encode('latin-1', 'replace').decode('latin-1')
 
     pdf = AURAPDF()
@@ -63,7 +81,7 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
     pdf.set_y(40)
     pdf.set_font("helvetica", "B", 18)
     pdf.set_text_color(24, 37, 73)
-    pdf.cell(0, 10, clean_text(f"Research Brief: {topic.title()}"), ln=True, align="L")
+    pdf.cell(0, 10, clean_text(f"Research Brief: {topic_display.title()}"), ln=True, align="L")
     
     # Underline
     pdf.set_draw_color(139, 92, 246)
