@@ -673,7 +673,7 @@ Rules:
                     resp = call_groq_api(text, system_instruction=system_prompt, json_mode=True)
                 if not resp and os.getenv("GEMINI_API_KEY"):
                     from backend.app.nlp.gemini import call_gemini_api
-                    resp = call_gemini_api(text, system_instruction=system_instruction, json_mode=True)
+                    resp = call_gemini_api(text, system_instruction=system_prompt, json_mode=True)
                 if resp:
                     parsed = _json.loads(resp.strip())
                     g_intent = parsed.get("intent", intent)
