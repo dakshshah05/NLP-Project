@@ -636,9 +636,8 @@ class NLPProcessor:
         ner_results = self.recognize_entities_ner(normalized, tokens, pos_tags)
         intent, confidence = self.detect_intent(normalized, lang)
 
-        # Zero-shot LLM parsing when Gemini API is available (works for any sentence in any language)
-        if os.getenv("GEMINI_API_KEY"):
-            from backend.app.nlp.gemini import call_gemini_api
+        # Zero-shot LLM parsing using Groq (Llama-3.3-70B) or Gemini API
+        if os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"):
             system_prompt = """You are an NLP parser for AURA AI. Parse the input command into structured JSON.
 
 Return ONLY this JSON schema (no markdown, no backticks):
@@ -668,7 +667,13 @@ Rules:
 3. If intent is SEND_EMAIL, include node-email in task_decomposition."""
             try:
                 import json as _json
-                resp = call_gemini_api(text, system_instruction=system_prompt, json_mode=True)
+                resp = ""
+                if os.getenv("GROQ_API_KEY"):
+                    from backend.app.nlp.groq_api import call_groq_api
+                    resp = call_groq_api(text, system_instruction=system_prompt, json_mode=True)
+                if not resp and os.getenv("GEMINI_API_KEY"):
+                    from backend.app.nlp.gemini import call_gemini_api
+                    resp = call_gemini_api(text, system_instruction=system_instruction, json_mode=True)
                 if resp:
                     parsed = _json.loads(resp.strip())
                     g_intent = parsed.get("intent", intent)
