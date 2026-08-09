@@ -392,8 +392,9 @@ class NLPProcessor:
         )
         
         # Multilingual regexes (Hindi Devanagari, Hinglish, Kannada)
+        # Matches: "Gemini का इस्तेमाल कैसे करें, इस पर एक PDF बनाएं..." -> group(1) = Gemini का इस्तेमाल कैसे करें
         hi_match = re.search(
-            r"(.+?)\s+(?:पर|के बारे में|विषय पर)\s+(?:एक\s+)?(pdf|पीडीएफ|दस्तावेज़|रिपोर्ट|फ़ाइल)\s+(?:बनाएं|बनाओ|लिखें|तैयार करें)",
+            r"(.+?)(?:,\s*|\s+)(?:इस\s+)?पर\s+(?:एक\s+)?(pdf|पीडीएफ|दस्तावेज़|रिपोर्ट|फ़ाइल)\s+(?:बनाएं|बनाओ|लिखें|तैयार करें)",
             text, re.IGNORECASE
         ) if not create_match else None
         
