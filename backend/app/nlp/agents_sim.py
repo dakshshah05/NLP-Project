@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import base64
 from datetime import datetime
@@ -47,7 +48,7 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
         create_text_report(filepath, topic, custom_content)
         return
 
-    # If the topic contains non-ASCII characters (e.g. Hindi/Kannada), translate it to English for clean display
+    # Ensure topic_display is 100% clean ASCII (no non-ASCII chars that turn into ??)
     topic_display = topic
     if any(ord(char) > 127 for char in topic):
         if os.getenv("GROQ_API_KEY") or os.getenv("GEMINI_API_KEY"):
@@ -56,14 +57,22 @@ def create_pdf_report(filepath: str, topic: str, custom_content: str = None):
                 if os.getenv("GROQ_API_KEY"):
                     from backend.app.nlp.groq_api import call_groq_api
                     tr = call_groq_api(trans_prompt)
-                    if tr: topic_display = tr.strip().strip('"')
-                if topic_display == topic and os.getenv("GEMINI_API_KEY"):
+                    if tr and not any(ord(c) > 127 for c in tr):
+                        topic_display = tr.strip().strip('"')
+                if (topic_display == topic or any(ord(c) > 127 for c in topic_display)) and os.getenv("GEMINI_API_KEY"):
                     tr = call_gemini_api(trans_prompt)
-                    if tr: topic_display = tr.strip().strip('"')
+                    if tr and not any(ord(c) > 127 for c in tr):
+                        topic_display = tr.strip().strip('"')
             except Exception:
-                topic_display = "Custom Topic Overview"
-        else:
-            topic_display = "Custom Topic Overview"
+                pass
+        
+        # If still contains non-ASCII characters, clean non-ASCII chars cleanly
+        if any(ord(char) > 127 for char in topic_display):
+            ascii_words = [w for w in re.sub(r'[^\w\s]', ' ', topic_display).split() if all(ord(c) < 128 for c in w)]
+            if ascii_words:
+                topic_display = " ".join(ascii_words)
+            else:
+                topic_display = "Gemini AI Guide" if "gemini" in topic.lower() else "Custom Research Report"
 
     def clean_text(text: str) -> str:
         if not text:
